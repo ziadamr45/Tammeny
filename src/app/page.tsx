@@ -7,7 +7,7 @@ import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
 import { QuickShareWidget, QuickShareCompact } from "@/components/tamenny/quick-share-widget";
 import { StatusWidget, LiveStats } from "@/components/tamenny/status-widget";
-import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, RefreshCw, ChevronDown } from "lucide-react";
+import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, RefreshCw, ChevronDown, Home, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,33 +27,24 @@ import {
 // Status types
 type AppStatus = "idle" | "tracking" | "sharing";
 
-// Route simulation points
-const ROUTE_POINTS = [
-  { lat: 30.0444, lng: 31.2357, name: "نقطة البداية" },
-  { lat: 30.0450, lng: 31.2365, name: "طريق التحرير" },
-  { lat: 30.0458, lng: 31.2372, name: "ميدان التحرير" },
-  { lat: 30.0465, lng: 31.2380, name: "شارع قصر النيل" },
-  { lat: 30.0472, lng: 31.2388, name: "جسر السادس من أكتوبر" },
-  { lat: 30.0480, lng: 31.2395, name: "الوجهة النهائية" },
-];
-
-// Mock destination
-const MOCK_DESTINATION = {
-  lat: 30.0480,
-  lng: 31.2395,
-  name: "المكتب - وسط البلد",
-};
-
-// Mock location for demo
-const MOCK_LOCATION = {
+// Default Cairo location (fallback if GPS fails)
+const CAIRO_LOCATION = {
   lat: 30.0444,
   lng: 31.2357,
   name: "القاهرة، مصر",
 };
 
+// Egypt bounds
+const EGYPT_BOUNDS = {
+  north: 31.9,
+  south: 22.0,
+  east: 37.0,
+  west: 24.7,
+};
+
 export default function HomePage() {
   const [status, setStatus] = useState<AppStatus>("idle");
-  const [location, setLocation] = useState<typeof MOCK_LOCATION | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showDestinationModal, setShowDestinationModal] = useState(false);
@@ -78,8 +69,8 @@ export default function HomePage() {
 
   // Calculate route info when destination is set
   const routeInfo = destination ? {
-    distance: calculateDistance(location || MOCK_LOCATION, destination),
-    duration: calculateETA(calculateDistance(location || MOCK_LOCATION, destination), 30),
+    distance: calculateDistance(location || CAIRO_LOCATION, destination),
+    duration: calculateETA(calculateDistance(location || CAIRO_LOCATION, destination), 30),
     progress: routeProgress,
   } : null;
 
@@ -92,23 +83,38 @@ export default function HomePage() {
         navigator.geolocation.getCurrentPosition(
           (position) => {
             if (mounted) {
-              setLocation({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                name: "موقعك الحالي",
-              });
+              const { latitude, longitude } = position.coords;
+              
+              // Check if location is within Egypt bounds
+              const isInEgypt = 
+                latitude >= EGYPT_BOUNDS.south &&
+                latitude <= EGYPT_BOUNDS.north &&
+                longitude >= EGYPT_BOUNDS.west &&
+                longitude <= EGYPT_BOUNDS.east;
+              
+              if (isInEgypt) {
+                setLocation({
+                  lat: latitude,
+                  lng: longitude,
+                  name: "موقعك الحالي",
+                });
+              } else {
+                // If outside Egypt, use default Cairo location
+                setLocation(CAIRO_LOCATION);
+              }
             }
           },
           () => {
-            // Use mock location if geolocation fails
+            // Use default location if geolocation fails
             if (mounted) {
-              setLocation(MOCK_LOCATION);
+              setLocation(CAIRO_LOCATION);
             }
-          }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
         if (mounted) {
-          setLocation(MOCK_LOCATION);
+          setLocation(CAIRO_LOCATION);
         }
       }
     };
@@ -140,61 +146,58 @@ export default function HomePage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [status]);
 
-  // Live tracking simulation with route
+  // Watch position when sharing - use real location updates
   useEffect(() => {
     if (status !== "sharing") return;
 
-    // Simulate route progress
-    const routeInterval = setInterval(() => {
-      setRouteIndex((prev) => {
-        const next = (prev + 1) % ROUTE_POINTS.length;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, speed } = position.coords;
         
-        // Update location along route
-        if (destination) {
-          const progress = next / (ROUTE_POINTS.length - 1);
-          const newLocation = interpolateRoute(
-            ROUTE_POINTS[0],
-            { lat: destination.lat, lng: destination.lng },
-            progress
-          );
+        // Check if location is within Egypt bounds
+        const isInEgypt = 
+          latitude >= EGYPT_BOUNDS.south &&
+          latitude <= EGYPT_BOUNDS.north &&
+          longitude >= EGYPT_BOUNDS.west &&
+          longitude <= EGYPT_BOUNDS.east;
+        
+        if (isInEgypt) {
           setLocation({
-            lat: newLocation.lat,
-            lng: newLocation.lng,
+            lat: latitude,
+            lng: longitude,
             name: "موقعك الحالي",
           });
-          setRouteProgress(Math.round(progress * 100));
-        } else {
-          setLocation({
-            lat: ROUTE_POINTS[next].lat,
-            lng: ROUTE_POINTS[next].lng,
-            name: ROUTE_POINTS[next].name,
-          });
+          setSpeed(speed ? speed * 3.6 : 0);
+          
+          // Update distance if destination is set
+          if (destination) {
+            const dist = calculateDistance({ lat: latitude, lng: longitude }, destination);
+            setDistance(dist);
+            setEta(calculateETA(dist, 30));
+            
+            // Calculate route progress
+            if (location) {
+              const totalDist = calculateDistance(location, destination);
+              const progress = Math.round((1 - dist / totalDist) * 100);
+              setRouteProgress(Math.max(0, Math.min(100, progress)));
+            }
+          }
         }
-        return next;
-      });
-      setSpeed(Math.floor(Math.random() * 30) + 20);
-      setDistance((prev) => Math.max(0, prev + (Math.random() - 0.3) * 0.5));
-    }, 2000);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000 }
+    );
 
-    // Simulate ETA countdown
+    // ETA countdown
     const etaInterval = setInterval(() => {
       setEta((prev) => Math.max(0, prev - 1));
-    }, 1000);
-
-    // Progress animation
-    const progressInterval = setInterval(() => {
-      setSharingProgress((prev) => {
-        if (prev >= 100) return 0;
-        return prev + 1;
-      });
-    }, selectedDuration === -1 ? 100 : (selectedDuration * 60000 / 100));
+    }, 60000); // Every minute
 
     return () => {
-      clearInterval(routeInterval);
+      navigator.geolocation.clearWatch(watchId);
       clearInterval(etaInterval);
-      clearInterval(progressInterval);
     };
-  }, [status, selectedDuration, destination]);
+  }, [status, destination, location]);
 
   // Emergency countdown
   useEffect(() => {
@@ -274,7 +277,7 @@ export default function HomePage() {
     if (destination) {
       setShowRoute(true);
       setAnimateMarker(true);
-      const dist = calculateDistance(location || MOCK_LOCATION, destination);
+      const dist = calculateDistance(location || CAIRO_LOCATION, destination);
       setDistance(dist);
       setEta(calculateETA(dist, 30));
     }
@@ -340,11 +343,10 @@ ${window.location.origin}/share/demo123
     setIsEmergencyPressed(false);
   };
 
-  const handleSetDestination = () => {
-    setDestination(MOCK_DESTINATION);
+  const handleSetDestination = (dest: { lat: number; lng: number; name: string }) => {
+    setDestination(dest);
     setShowDestinationModal(false);
-    // Add waypoints for the route
-    setWaypoints(ROUTE_POINTS.slice(1, -1).map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
+    setWaypoints([]); // No waypoints for now
     toast.success("تم تحديد الوجهة");
   };
 
@@ -716,7 +718,7 @@ ${window.location.origin}/share/demo123
           </div>
         </Card>
 
-        {/* Recent Activities */}
+        {/* Recent Activities - Empty state if no trips */}
         <Card className="p-4 card-shadow hover:shadow-lg transition-all">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-lg flex items-center gap-2">
@@ -725,42 +727,27 @@ ${window.location.origin}/share/demo123
             </h3>
             <Link href="/history" className="text-sm text-primary hover:underline hover:text-teal-dark transition-colors">عرض الكل</Link>
           </div>
-          <div className="space-y-3">
-            <ActivityItem
-              icon={<MapPin className="w-4 h-4" />}
-              title="رحلة إلى المكتب"
-              time="منذ ٢ ساعة"
-              distance="٥.٢ كم"
-              color="primary"
-            />
-            <ActivityItem
-              icon={<Navigation className="w-4 h-4" />}
-              title="تتبع مع أحمد"
-              time="أمس"
-              distance="١٢ كم"
-              color="green"
-            />
-            <ActivityItem
-              icon={<Shield className="w-4 h-4" />}
-              title="رحلة عائلية"
-              time="منذ ٣ أيام"
-              distance="٨.٧ كم"
-              color="purple"
-            />
+          <div className="text-center py-4">
+            <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+              <Activity className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              لا توجد رحلات حتى الآن. ابدأ مشاركة موقعك!
+            </p>
           </div>
         </Card>
 
-        {/* Stats Card */}
+        {/* Stats Card - Will show 0 if no data */}
         <Link href="/dashboard">
           <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10 hover:shadow-xl transition-all cursor-pointer hover:-translate-y-1 group overflow-hidden relative">
             {/* Decorative element */}
             <div className="absolute top-0 left-0 w-24 h-24 bg-primary/10 rounded-full -translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
             <div className="flex items-center justify-around relative z-10">
-              <StatItem value="٢٤" label="رحلة" />
+              <StatItem value="٠" label="رحلة" />
               <div className="w-px h-10 bg-border" />
-              <StatItem value="١٥٦" label="كم" />
+              <StatItem value="٠" label="كم" />
               <div className="w-px h-10 bg-border" />
-              <StatItem value="٨" label="جهة اتصال" />
+              <StatItem value="٠" label="جهة اتصال" />
             </div>
           </Card>
         </Link>
@@ -807,9 +794,12 @@ ${window.location.origin}/share/demo123
             <DialogTitle className="text-center text-lg">تحديد الوجهة</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground text-center">
+              اختر وجهتك أو ابحث عنها على الخريطة
+            </p>
             <div className="flex flex-col gap-3">
               <button
-                onClick={handleSetDestination}
+                onClick={() => handleSetDestination({ lat: 30.0480, lng: 31.2395, name: "المكتب" })}
                 className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right"
               >
                 <div className="flex items-center gap-3">
@@ -817,17 +807,13 @@ ${window.location.origin}/share/demo123
                     <Building2 className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <div className="font-medium">المكتب - وسط البلد</div>
-                    <div className="text-sm text-muted-foreground">{formatArabicDistance(3.5, "km")} • {formatArabicDuration(12, "minutes")}</div>
+                    <div className="font-medium">المكتب</div>
+                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
                   </div>
                 </div>
               </button>
               <button
-                onClick={() => {
-                  setDestination({ lat: 30.0500, lng: 31.2400, name: "منزل الأهل" });
-                  setShowDestinationModal(false);
-                  toast.success("تم تحديد الوجهة");
-                }}
+                onClick={() => handleSetDestination({ lat: 30.0500, lng: 31.2400, name: "منزل الأهل" })}
                 className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right"
               >
                 <div className="flex items-center gap-3">
@@ -836,7 +822,21 @@ ${window.location.origin}/share/demo123
                   </div>
                   <div>
                     <div className="font-medium">منزل الأهل</div>
-                    <div className="text-sm text-muted-foreground">{formatArabicDistance(8.2, "km")} • {formatArabicDuration(25, "minutes")}</div>
+                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => handleSetDestination({ lat: 30.0450, lng: 31.2350, name: "المنزل" })}
+                className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                    <Home className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium">المنزل</div>
+                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
                   </div>
                 </div>
               </button>
@@ -902,15 +902,6 @@ ${window.location.origin}/share/demo123
   );
 }
 
-// Building2 icon for destination modal
-function Building2({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-    </svg>
-  );
-}
-
 // Enhanced Status Card Component
 function EnhancedStatusCard({
   icon,
@@ -948,41 +939,6 @@ function EnhancedStatusCard({
       <span className={cn("font-bold text-sm", isPrimary ? "text-primary-foreground" : "text-foreground")}>
         {value}
       </span>
-    </div>
-  );
-}
-
-function ActivityItem({
-  icon,
-  title,
-  time,
-  distance,
-  color = "primary",
-}: {
-  icon: React.ReactNode;
-  title: string;
-  time: string;
-  distance: string;
-  color?: "primary" | "green" | "purple";
-}) {
-  const colors = {
-    primary: "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white",
-    green: "bg-green-100 text-green-600 group-hover:bg-green-500 group-hover:text-white",
-    purple: "bg-purple-100 text-purple-600 group-hover:bg-purple-500 group-hover:text-white",
-  };
-
-  return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all cursor-pointer group hover:shadow-md">
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-colors", colors[color])}>
-        {icon}
-      </div>
-      <div className="flex-1">
-        <div className="font-medium">{title}</div>
-        <div className="text-xs text-muted-foreground">{time}</div>
-      </div>
-      <Badge variant="secondary" className="bg-primary/10 text-primary group-hover:bg-white group-hover:text-primary transition-colors">
-        {distance}
-      </Badge>
     </div>
   );
 }

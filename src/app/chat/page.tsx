@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,6 @@ import {
   CheckCheck,
   Clock,
   Paperclip,
-  Image as ImageIcon,
   Smile,
   Volume2,
   VolumeX,
@@ -30,97 +30,24 @@ import {
   Star,
   Trash2,
   Archive,
+  Loader2,
+  MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
-// Mock chat data
-const MOCK_CHATS = [
-  {
-    id: "1",
-    name: "أحمد",
-    lastMessage: "وصلت السلامة 👍",
-    time: "منذ ٥ دقائق",
-    unread: 2,
-    online: true,
-    isFavorite: true,
-  },
-  {
-    id: "2",
-    name: "محمد",
-    lastMessage: "طيب، انتظرك",
-    time: "منذ ساعة",
-    unread: 0,
-    online: false,
-    isFavorite: false,
-  },
-  {
-    id: "3",
-    name: "سارة",
-    lastMessage: "شكراً على التتبع",
-    time: "أمس",
-    unread: 0,
-    online: true,
-    isFavorite: true,
-  },
-  {
-    id: "4",
-    name: "مجموعة العائلة",
-    lastMessage: "أمي: وصلتوا؟",
-    time: "منذ ٣ ساعات",
-    unread: 5,
-    online: false,
-    isGroup: true,
-    isFavorite: false,
-  },
-];
-
-const MOCK_MESSAGES = [
-  {
-    id: "1",
-    sender: "them",
-    text: "السلام عليكم، وينك دلوقتي؟",
-    time: "١٠:٣٠ ص",
-    status: "read",
-  },
-  {
-    id: "2",
-    sender: "me",
-    text: "وعليكم السلام، أنا في الطريق",
-    time: "١٠:٣١ ص",
-    status: "read",
-  },
-  {
-    id: "3",
-    sender: "them",
-    text: "طيب، فين بالظبط؟",
-    time: "١٠:٣٢ ص",
-    status: "read",
-  },
-  {
-    id: "4",
-    sender: "me",
-    text: "شارك موقعي معاك، تابع من الرابط 👇",
-    time: "١٠:٣٣ ص",
-    status: "read",
-    hasLocationShare: true,
-  },
-  {
-    id: "5",
-    sender: "them",
-    text: "تمام، شايفك 👍",
-    time: "١٠:٣٥ ص",
-    status: "read",
-  },
-  {
-    id: "6",
-    sender: "them",
-    text: "وصلت السلامة 👍",
-    time: "١٠:٤٥ ص",
-    status: "read",
-  },
-];
+interface Conversation {
+  id: string;
+  sessionId: string;
+  name: string;
+  avatar: string | null;
+  lastMessage: string;
+  time: string;
+  unread: number;
+  online: boolean;
+}
 
 const QUICK_REPLIES = [
   "طمنّي عليك!",
@@ -131,8 +58,10 @@ const QUICK_REPLIES = [
 ];
 
 export default function ChatPage() {
+  const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [view, setView] = useState<"list" | "chat">("list");
-  const [selectedChat, setSelectedChat] = useState<string | null>(null);
+  const [selectedChat, setSelectedChat] = useState<Conversation | null>(null);
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -140,30 +69,61 @@ export default function ChatPage() {
   const [showChatOptions, setShowChatOptions] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [messages, setMessages] = useState<{id: string; sender: string; text: string; time: string; status: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Fetch conversations
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const fetchConversations = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/messages');
+        const data = await response.json();
+        
+        if (data.success) {
+          setConversations(data.conversations);
+        }
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConversations();
+  }, [isAuthenticated]);
+
   useEffect(() => {
     scrollToBottom();
-  }, []);
-
-  // Simulate typing indicator
-  useEffect(() => {
-    if (view === "chat" && selectedChat) {
-      const interval = setInterval(() => {
-        setIsTyping(true);
-        setTimeout(() => setIsTyping(false), 2000);
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [view, selectedChat]);
+  }, [messages]);
 
   const handleSendMessage = () => {
-    if (!message.trim()) return;
-    toast.success("تم إرسال الرسالة");
+    if (!message.trim() || !selectedChat) return;
+    
+    // Add message to local state (would normally send to API)
+    const newMessage = {
+      id: Date.now().toString(),
+      sender: "me",
+      text: message,
+      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      status: "sent"
+    };
+    setMessages(prev => [...prev, newMessage]);
     setMessage("");
     scrollToBottom();
   };
@@ -179,15 +139,35 @@ export default function ChatPage() {
     toast.success("تم مشاركة موقعك!");
   };
 
-  const handleSelectChat = (chatId: string) => {
-    setSelectedChat(chatId);
+  const handleSelectChat = (chat: Conversation) => {
+    setSelectedChat(chat);
     setView("chat");
+    // Load messages for this conversation (would be from API)
+    setMessages([]);
   };
 
   const handleBack = () => {
     setView("list");
     setSelectedChat(null);
+    setMessages([]);
   };
+
+  // Auth Loading
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-background pb-20 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-muted-foreground">جاري التحميل...</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return null; // Will redirect
+  }
 
   return (
     <main className="min-h-screen bg-background pb-20">
@@ -195,12 +175,14 @@ export default function ChatPage() {
 
       {view === "list" ? (
         <ChatList
-          chats={MOCK_CHATS}
+          conversations={conversations}
+          loading={loading}
           onSelectChat={handleSelectChat}
         />
       ) : (
         <ChatView
-          messages={MOCK_MESSAGES}
+          selectedChat={selectedChat}
+          messages={messages}
           message={message}
           setMessage={setMessage}
           onSendMessage={handleSendMessage}
@@ -264,11 +246,13 @@ export default function ChatPage() {
 }
 
 function ChatList({
-  chats,
+  conversations,
+  loading,
   onSelectChat,
 }: {
-  chats: typeof MOCK_CHATS;
-  onSelectChat: (id: string) => void;
+  conversations: Conversation[];
+  loading: boolean;
+  onSelectChat: (chat: Conversation) => void;
 }) {
   return (
     <div className="pt-16 px-4">
@@ -276,7 +260,7 @@ function ChatList({
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">الرسائل</h1>
         <Badge variant="secondary" className="bg-primary/10 text-primary">
-          {chats.reduce((acc, c) => acc + c.unread, 0)} غير مقروءة
+          {conversations.reduce((acc, c) => acc + c.unread, 0)} غير مقروءة
         </Badge>
       </div>
 
@@ -289,86 +273,84 @@ function ChatList({
         />
       </div>
 
-      {/* Favorites section */}
-      <div className="mb-4">
-        <h3 className="text-sm text-muted-foreground mb-2">المفضلة</h3>
-        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-          {chats.filter(c => c.isFavorite).map((chat) => (
-            <button
-              key={chat.id}
-              onClick={() => onSelectChat(chat.id)}
-              className="flex flex-col items-center gap-1 shrink-0"
-            >
-              <div className="relative">
-                <Avatar className="w-14 h-14 border-2 border-primary">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                    {chat.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                {chat.online && (
-                  <div className="absolute bottom-0 left-0 w-4 h-4 bg-green-500 rounded-full border-2 border-card" />
-                )}
-              </div>
-              <span className="text-xs truncate max-w-14">{chat.name}</span>
-            </button>
-          ))}
+      {/* Loading state */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-muted-foreground mt-2">جاري تحميل المحادثات...</p>
         </div>
-      </div>
+      )}
 
-      {/* Chat list */}
-      <div className="space-y-2">
-        {chats.map((chat) => (
-          <Card
-            key={chat.id}
-            className="p-4 card-shadow cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 border border-transparent hover:border-primary/20"
-            onClick={() => onSelectChat(chat.id)}
+      {/* Empty state */}
+      {!loading && conversations.length === 0 && (
+        <Card className="p-8 text-center card-shadow">
+          <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+            <MessageCircle className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="font-medium mb-2">لا توجد محادثات</h3>
+          <p className="text-sm text-muted-foreground">
+            سيظهر هنا الأشخاص الذين شاركت موقعك معهم
+          </p>
+          <Button
+            className="mt-4"
+            onClick={() => window.location.href = '/'}
           >
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Avatar className="w-12 h-12">
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {chat.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                {chat.online && (
-                  <div className="absolute bottom-0 left-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card animate-pulse" />
-                )}
-                {chat.isGroup && (
-                  <div className="absolute -top-1 -left-1 w-5 h-5 bg-secondary rounded-full flex items-center justify-center border-2 border-card">
-                    <span className="text-xs">👥</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium flex items-center gap-1">
-                    {chat.name}
-                    {chat.isFavorite && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {chat.time}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground truncate">
-                    {chat.lastMessage}
-                  </p>
-                  {chat.unread > 0 && (
-                    <Badge className="bg-primary text-primary-foreground rounded-full px-2 h-5 min-w-5 flex items-center justify-center">
-                      {chat.unread}
-                    </Badge>
+            ابدأ مشاركة الموقع
+          </Button>
+        </Card>
+      )}
+
+      {/* Conversations list */}
+      {!loading && conversations.length > 0 && (
+        <div className="space-y-2">
+          {conversations.map((chat) => (
+            <Card
+              key={chat.id}
+              className="p-4 card-shadow cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 border border-transparent hover:border-primary/20"
+              onClick={() => onSelectChat(chat)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar className="w-12 h-12">
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      {chat.name[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  {chat.online && (
+                    <div className="absolute bottom-0 left-0 w-3 h-3 bg-green-500 rounded-full border-2 border-card animate-pulse" />
                   )}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium flex items-center gap-1">
+                      {chat.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {chat.time}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground truncate">
+                      {chat.lastMessage}
+                    </p>
+                    {chat.unread > 0 && (
+                      <Badge className="bg-primary text-primary-foreground rounded-full px-2 h-5 min-w-5 flex items-center justify-center">
+                        {chat.unread}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function ChatView({
+  selectedChat,
   messages,
   message,
   setMessage,
@@ -387,7 +369,8 @@ function ChatView({
   setIsMuted,
   isTyping,
 }: {
-  messages: typeof MOCK_MESSAGES;
+  selectedChat: Conversation | null;
+  messages: {id: string; sender: string; text: string; time: string; status: string}[];
   message: string;
   setMessage: (msg: string) => void;
   onSendMessage: () => void;
@@ -420,11 +403,11 @@ function ChatView({
           </Button>
           <Avatar className="w-10 h-10">
             <AvatarFallback className="bg-primary text-primary-foreground">
-              أ
+              {selectedChat?.name?.[0] || "؟"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
-            <div className="font-medium">أحمد</div>
+            <div className="font-medium">{selectedChat?.name || "محادثة"}</div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               {isTyping ? (
                 <span className="text-primary">يكتب...</span>
@@ -459,12 +442,27 @@ function ChatView({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[calc(100vh-320px)]">
+        {/* Empty state */}
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <MessageCircle className="w-8 h-8 text-primary" />
+            </div>
+            <h3 className="font-medium mb-2">ابدأ المحادثة</h3>
+            <p className="text-sm text-muted-foreground">
+              أرسل رسالة أو شارك موقعك
+            </p>
+          </div>
+        )}
+
         {/* Date separator */}
-        <div className="flex items-center justify-center">
-          <span className="text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
-            اليوم
-          </span>
-        </div>
+        {messages.length > 0 && (
+          <div className="flex items-center justify-center">
+            <span className="text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
+              اليوم
+            </span>
+          </div>
+        )}
 
         {messages.map((msg, index) => (
           <div
@@ -484,15 +482,6 @@ function ChatView({
                   : "bg-secondary rounded-tl-none"
               )}
             >
-              {msg.hasLocationShare && (
-                <div className="mb-2 p-2 bg-white/10 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4" />
-                    <span className="text-sm">موقعي الحالي</span>
-                  </div>
-                  <div className="text-xs opacity-70 mt-1">اضغط للتتبع</div>
-                </div>
-              )}
               <p>{msg.text}</p>
               <div className="flex items-center justify-end gap-1 mt-1">
                 <span
