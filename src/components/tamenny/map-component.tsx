@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { MapPin, Navigation, AlertCircle } from "lucide-react";
+import { MapPin, Navigation, AlertCircle, Clock, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -11,9 +11,23 @@ interface Location {
   name?: string;
 }
 
+interface Waypoint {
+  lat: number;
+  lng: number;
+  name?: string;
+  type?: "start" | "end" | "waypoint";
+}
+
+interface RouteInfo {
+  distance: number; // in km
+  duration: number; // in minutes
+  progress?: number; // 0-100
+}
+
 interface MapComponentProps {
   center?: Location;
   destination?: Location | null;
+  waypoints?: Waypoint[];
   showRoute?: boolean;
   markerLabel?: string;
   destinationLabel?: string;
@@ -21,6 +35,11 @@ interface MapComponentProps {
   onLocationSelect?: (location: Location) => void;
   interactive?: boolean;
   showUserLocation?: boolean;
+  routeStyle?: "planned" | "active" | "completed";
+  routeColor?: string;
+  animateMarker?: boolean;
+  routeInfo?: RouteInfo | null;
+  onRouteComplete?: () => void;
 }
 
 // Cairo default location
@@ -33,6 +52,7 @@ const CAIRO_LOCATION: Location = {
 export function MapComponent({
   center = CAIRO_LOCATION,
   destination,
+  waypoints = [],
   showRoute = false,
   markerLabel = "موقعك الحالي",
   destinationLabel = "الوجهة",
@@ -40,6 +60,11 @@ export function MapComponent({
   onLocationSelect,
   interactive = false,
   showUserLocation = true,
+  routeStyle = "active",
+  routeColor,
+  animateMarker = false,
+  routeInfo,
+  onRouteComplete,
 }: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
@@ -47,6 +72,9 @@ export function MapComponent({
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const routeRef = useRef<L.Polyline | null>(null);
+  const waypointMarkersRef = useRef<L.Marker[]>([]);
+  const animatedMarkerRef = useRef<L.Marker | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
   // Load Leaflet dynamically
   useEffect(() => {
@@ -112,6 +140,42 @@ export function MapComponent({
     mapInstance.setView([center.lat, center.lng], mapInstance.getZoom());
   }, [center, mapInstance]);
 
+  // Get route style based on type
+  const getRouteStyle = useCallback(() => {
+    const baseColor = routeColor || "#0d9488";
+    
+    switch (routeStyle) {
+      case "planned":
+        return {
+          color: "#94a3b8",
+          weight: 4,
+          opacity: 0.6,
+          dashArray: "10, 10",
+        };
+      case "active":
+        return {
+          color: baseColor,
+          weight: 5,
+          opacity: 0.9,
+          dashArray: null,
+        };
+      case "completed":
+        return {
+          color: "#22c55e",
+          weight: 4,
+          opacity: 0.8,
+          dashArray: null,
+        };
+      default:
+        return {
+          color: baseColor,
+          weight: 4,
+          opacity: 0.8,
+          dashArray: null,
+        };
+    }
+  }, [routeStyle, routeColor]);
+
   // Add user location marker
   useEffect(() => {
     if (!mapInstance || !leafletLoaded || !showUserLocation) return;
@@ -119,7 +183,7 @@ export function MapComponent({
     const addMarker = async () => {
       const L = await import("leaflet");
       
-      // Clear existing markers
+      // Clear existing markers (but not destination or waypoint markers)
       markersRef.current.forEach((marker) => marker.remove());
       markersRef.current = [];
 
@@ -150,6 +214,52 @@ export function MapComponent({
 
     addMarker();
   }, [center, mapInstance, leafletLoaded, showUserLocation, markerLabel]);
+
+  // Add waypoints
+  useEffect(() => {
+    if (!mapInstance || !leafletLoaded || waypoints.length === 0) return;
+
+    const addWaypoints = async () => {
+      const L = await import("leaflet");
+
+      // Clear existing waypoint markers
+      waypointMarkersRef.current.forEach((marker) => marker.remove());
+      waypointMarkersRef.current = [];
+
+      waypoints.forEach((waypoint, index) => {
+        // Create waypoint icon based on type
+        const waypointIcon = L.default.divIcon({
+          html: `
+            <div class="relative -translate-x-1/2 -translate-y-1/2">
+              <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white">
+                <span class="text-white text-xs font-bold">${index + 1}</span>
+              </div>
+              ${waypoint.name ? `
+                <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap bg-white px-2 py-1 rounded-md shadow text-xs font-medium">
+                  ${waypoint.name}
+                </div>
+              ` : ''}
+            </div>
+          `,
+          className: "waypoint-marker",
+          iconSize: [30, 40],
+          iconAnchor: [15, 15],
+        });
+
+        const waypointMarker = L.default.marker([waypoint.lat, waypoint.lng], { icon: waypointIcon })
+          .addTo(mapInstance);
+
+        waypointMarkersRef.current.push(waypointMarker);
+      });
+    };
+
+    addWaypoints();
+
+    return () => {
+      waypointMarkersRef.current.forEach((marker) => marker.remove());
+      waypointMarkersRef.current = [];
+    };
+  }, [waypoints, mapInstance, leafletLoaded]);
 
   // Add destination marker and route
   useEffect(() => {
@@ -189,28 +299,27 @@ export function MapComponent({
           routeRef.current.remove();
         }
 
-        // Draw curved route
-        const routeLine = L.default.polyline(
-          [
-            [center.lat, center.lng],
-            [destination.lat, destination.lng],
-          ],
-          {
-            color: "#0d9488",
-            weight: 4,
-            opacity: 0.8,
-            dashArray: "10, 10",
-            lineCap: "round",
-          }
-        ).addTo(mapInstance);
+        // Build route points including waypoints
+        const routePoints: [number, number][] = [[center.lat, center.lng]];
+        
+        // Add waypoints in order
+        waypoints.forEach((wp) => {
+          routePoints.push([wp.lat, wp.lng]);
+        });
+        
+        // Add destination
+        routePoints.push([destination.lat, destination.lng]);
+
+        // Get route style
+        const style = getRouteStyle();
+
+        // Draw route line
+        const routeLine = L.default.polyline(routePoints, style).addTo(mapInstance);
 
         routeRef.current = routeLine;
 
-        // Fit bounds to show both markers
-        const bounds = L.default.latLngBounds([
-          [center.lat, center.lng],
-          [destination.lat, destination.lng],
-        ]);
+        // Fit bounds to show all markers
+        const bounds = L.default.latLngBounds(routePoints);
         mapInstance.fitBounds(bounds, { padding: [50, 50] });
       }
     };
@@ -223,7 +332,120 @@ export function MapComponent({
         routeRef.current = null;
       }
     };
-  }, [destination, mapInstance, leafletLoaded, center, showRoute, destinationLabel]);
+  }, [destination, mapInstance, leafletLoaded, center, showRoute, destinationLabel, waypoints, getRouteStyle]);
+
+  // Animate marker along route
+  useEffect(() => {
+    if (!mapInstance || !leafletLoaded || !animateMarker || !destination || !showRoute) return;
+
+    const animateMarkerAlongRoute = async () => {
+      const L = await import("leaflet");
+
+      // Build route points
+      const routePoints: [number, number][] = [[center.lat, center.lng]];
+      waypoints.forEach((wp) => {
+        routePoints.push([wp.lat, wp.lng]);
+      });
+      routePoints.push([destination.lat, destination.lng]);
+
+      // Create animated marker icon
+      const animatedIcon = L.default.divIcon({
+        html: `
+          <div class="relative">
+            <div class="absolute w-8 h-8 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/30 animate-ping"></div>
+            <div class="absolute w-5 h-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary flex items-center justify-center shadow-lg">
+              <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+              </svg>
+            </div>
+          </div>
+        `,
+        className: "animated-marker",
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      // Remove existing animated marker
+      if (animatedMarkerRef.current) {
+        animatedMarkerRef.current.remove();
+      }
+
+      // Create animated marker
+      const animatedMarker = L.default.marker(routePoints[0], { icon: animatedIcon })
+        .addTo(mapInstance);
+
+      animatedMarkerRef.current = animatedMarker;
+
+      // Calculate total distance for progress
+      let totalDistance = 0;
+      for (let i = 0; i < routePoints.length - 1; i++) {
+        const dx = routePoints[i + 1][1] - routePoints[i][1];
+        const dy = routePoints[i + 1][0] - routePoints[i][0];
+        totalDistance += Math.sqrt(dx * dx + dy * dy);
+      }
+
+      const duration = 10000; // 10 seconds for the animation
+      let startTime: number | null = null;
+
+      const animate = (timestamp: number) => {
+        if (!startTime) startTime = timestamp;
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Calculate position along route
+        const targetDistance = progress * totalDistance;
+        let currentDistance = 0;
+        let currentPosition: [number, number] = routePoints[0];
+
+        for (let i = 0; i < routePoints.length - 1; i++) {
+          const dx = routePoints[i + 1][1] - routePoints[i][1];
+          const dy = routePoints[i + 1][0] - routePoints[i][0];
+          const segmentDistance = Math.sqrt(dx * dx + dy * dy);
+
+          if (currentDistance + segmentDistance >= targetDistance) {
+            const segmentProgress = (targetDistance - currentDistance) / segmentDistance;
+            currentPosition = [
+              routePoints[i][0] + dy * segmentProgress,
+              routePoints[i][1] + dx * segmentProgress,
+            ];
+            break;
+          }
+
+          currentDistance += segmentDistance;
+          currentPosition = routePoints[i + 1];
+        }
+
+        // Update marker position
+        animatedMarker.setLatLng(currentPosition);
+
+        // Center map on marker
+        mapInstance.panTo(currentPosition, { animate: false });
+
+        if (progress < 1) {
+          animationFrameRef.current = requestAnimationFrame(animate);
+        } else {
+          // Animation complete
+          if (onRouteComplete) {
+            onRouteComplete();
+          }
+        }
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animateMarkerAlongRoute();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (animatedMarkerRef.current) {
+        animatedMarkerRef.current.remove();
+        animatedMarkerRef.current = null;
+      }
+    };
+  }, [animateMarker, destination, mapInstance, leafletLoaded, showRoute, center, waypoints, onRouteComplete]);
 
   // Handle click for location selection
   useEffect(() => {
@@ -292,6 +514,38 @@ export function MapComponent({
         )}
       </div>
 
+      {/* Route info overlay */}
+      {showRoute && routeInfo && (
+        <div className="absolute top-4 left-4 z-[1000]">
+          <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Route className="w-4 h-4 text-primary" />
+                <span className="font-bold text-primary">{routeInfo.distance.toFixed(1)} كم</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-blue-600" />
+                <span className="font-bold text-blue-600">{routeInfo.duration} دقيقة</span>
+              </div>
+            </div>
+            {routeInfo.progress !== undefined && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">التقدم</span>
+                  <span className="font-medium">{routeInfo.progress}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-300"
+                    style={{ width: `${routeInfo.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Location accuracy indicator */}
       {currentLocation && (
         <div className="absolute bottom-4 right-4 z-[1000]">
@@ -345,3 +599,29 @@ export const DynamicMap = dynamic(() => Promise.resolve(MapComponent), {
   ssr: false,
   loading: () => <MapSkeleton className="h-full w-full" />,
 });
+
+// Route utility functions
+export function calculateDistance(loc1: Location, loc2: Location): number {
+  // Haversine formula
+  const R = 6371; // Earth's radius in km
+  const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
+  const dLng = (loc2.lng - loc1.lng) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export function calculateETA(distance: number, speedKmh: number = 30): number {
+  // Returns ETA in minutes
+  return Math.round((distance / speedKmh) * 60);
+}
+
+export function interpolateRoute(start: Location, end: Location, progress: number): Location {
+  return {
+    lat: start.lat + (end.lat - start.lat) * progress,
+    lng: start.lng + (end.lng - start.lng) * progress,
+  };
+}

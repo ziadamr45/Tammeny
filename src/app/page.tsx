@@ -2,9 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
-import { StatusCard, ActionButton, ShareOption, DestinationCard } from "@/components/tamenny/share-card";
-import { DynamicMap } from "@/components/tamenny/map-component";
-import { MapPin, Navigation, Clock, Shield, Eye, Plus, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity } from "lucide-react";
+import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
+import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
+import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +17,23 @@ import Link from "next/link";
 // Status types
 type AppStatus = "idle" | "tracking" | "sharing";
 
+// Route simulation points
+const ROUTE_POINTS = [
+  { lat: 30.0444, lng: 31.2357, name: "نقطة البداية" },
+  { lat: 30.0450, lng: 31.2365, name: "طريق التحرير" },
+  { lat: 30.0458, lng: 31.2372, name: "ميدان التحرير" },
+  { lat: 30.0465, lng: 31.2380, name: "شارع قصر النيل" },
+  { lat: 30.0472, lng: 31.2388, name: "جسر السادس من أكتوبر" },
+  { lat: 30.0480, lng: 31.2395, name: "الوجهة النهائية" },
+];
+
+// Mock destination
+const MOCK_DESTINATION = {
+  lat: 30.0480,
+  lng: 31.2395,
+  name: "المكتب - وسط البلد",
+};
+
 // Mock location for demo
 const MOCK_LOCATION = {
   lat: 30.0444,
@@ -24,21 +41,12 @@ const MOCK_LOCATION = {
   name: "القاهرة، مصر",
 };
 
-// Route simulation points
-const ROUTE_POINTS = [
-  { lat: 30.0444, lng: 31.2357 },
-  { lat: 30.0450, lng: 31.2365 },
-  { lat: 30.0458, lng: 31.2372 },
-  { lat: 30.0465, lng: 31.2380 },
-  { lat: 30.0472, lng: 31.2388 },
-  { lat: 30.0480, lng: 31.2395 },
-];
-
 export default function HomePage() {
   const [status, setStatus] = useState<AppStatus>("idle");
   const [location, setLocation] = useState<typeof MOCK_LOCATION | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [showDestinationModal, setShowDestinationModal] = useState(false);
   const [selectedDuration, setSelectedDuration] = useState(5);
   const [destination, setDestination] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [distance, setDistance] = useState(0);
@@ -49,7 +57,18 @@ export default function HomePage() {
   const [routeIndex, setRouteIndex] = useState(0);
   const [eta, setEta] = useState(0);
   const [isEmergencyPressed, setIsEmergencyPressed] = useState(false);
+  const [routeProgress, setRouteProgress] = useState(0);
+  const [animateMarker, setAnimateMarker] = useState(false);
+  const [showRoute, setShowRoute] = useState(false);
+  const [waypoints, setWaypoints] = useState<{ lat: number; lng: number; name?: string }[]>([]);
   const mapRef = useRef<HTMLDivElement>(null);
+
+  // Calculate route info when destination is set
+  const routeInfo = destination ? {
+    distance: calculateDistance(location || MOCK_LOCATION, destination),
+    duration: calculateETA(calculateDistance(location || MOCK_LOCATION, destination), 30),
+    progress: routeProgress,
+  } : null;
 
   // Get current location on mount
   useEffect(() => {
@@ -108,7 +127,7 @@ export default function HomePage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [status]);
 
-  // Live tracking simulation
+  // Live tracking simulation with route
   useEffect(() => {
     if (status !== "sharing") return;
 
@@ -116,15 +135,32 @@ export default function HomePage() {
     const routeInterval = setInterval(() => {
       setRouteIndex((prev) => {
         const next = (prev + 1) % ROUTE_POINTS.length;
-        setLocation({
-          lat: ROUTE_POINTS[next].lat,
-          lng: ROUTE_POINTS[next].lng,
-          name: "موقعك الحالي",
-        });
+        
+        // Update location along route
+        if (destination) {
+          const progress = next / (ROUTE_POINTS.length - 1);
+          const newLocation = interpolateRoute(
+            ROUTE_POINTS[0],
+            { lat: destination.lat, lng: destination.lng },
+            progress
+          );
+          setLocation({
+            lat: newLocation.lat,
+            lng: newLocation.lng,
+            name: "موقعك الحالي",
+          });
+          setRouteProgress(Math.round(progress * 100));
+        } else {
+          setLocation({
+            lat: ROUTE_POINTS[next].lat,
+            lng: ROUTE_POINTS[next].lng,
+            name: ROUTE_POINTS[next].name,
+          });
+        }
         return next;
       });
       setSpeed(Math.floor(Math.random() * 30) + 20);
-      setDistance((prev) => Math.max(0, prev + (Math.random() - 0.5) * 0.5));
+      setDistance((prev) => Math.max(0, prev + (Math.random() - 0.3) * 0.5));
     }, 2000);
 
     // Simulate ETA countdown
@@ -145,7 +181,7 @@ export default function HomePage() {
       clearInterval(etaInterval);
       clearInterval(progressInterval);
     };
-  }, [status, selectedDuration]);
+  }, [status, selectedDuration, destination]);
 
   // Emergency countdown
   useEffect(() => {
@@ -163,7 +199,6 @@ export default function HomePage() {
     };
     
     if (countdown <= 0) {
-      // Trigger emergency
       triggerEmergency();
       return;
     }
@@ -183,6 +218,15 @@ export default function HomePage() {
     setShowShareModal(false);
     setStatus("sharing");
     setEta(selectedDuration === -1 ? 30 : selectedDuration);
+    
+    // If destination is set, show route
+    if (destination) {
+      setShowRoute(true);
+      setAnimateMarker(true);
+      const dist = calculateDistance(location || MOCK_LOCATION, destination);
+      setDistance(dist);
+      setEta(calculateETA(dist, 30));
+    }
     
     // Generate share message
     const shareMessage = `أنا مشارك موقعي معاك لمدة ${selectedDuration} دقيقة ⏱️
@@ -216,6 +260,10 @@ ${window.location.origin}/share/demo123
     setDuration(0);
     setSharingProgress(0);
     setRouteIndex(0);
+    setShowRoute(false);
+    setAnimateMarker(false);
+    setRouteProgress(0);
+    setWaypoints([]);
     toast.success("تم إيقاف المشاركة");
   };
 
@@ -239,6 +287,31 @@ ${window.location.origin}/share/demo123
 
   const handleEmergencyButtonUp = () => {
     setIsEmergencyPressed(false);
+  };
+
+  const handleSetDestination = () => {
+    setDestination(MOCK_DESTINATION);
+    setShowDestinationModal(false);
+    // Add waypoints for the route
+    setWaypoints(ROUTE_POINTS.slice(1, -1).map(p => ({ lat: p.lat, lng: p.lng, name: p.name })));
+    toast.success("تم تحديد الوجهة");
+  };
+
+  const handleClearRoute = () => {
+    setDestination(null);
+    setShowRoute(false);
+    setAnimateMarker(false);
+    setRouteProgress(0);
+    setWaypoints([]);
+    setDistance(0);
+    setEta(0);
+    toast.success("تم إلغاء المسار");
+  };
+
+  const handleRouteComplete = () => {
+    toast.success("تم الوصول إلى الوجهة!");
+    setStatus("idle");
+    setAnimateMarker(false);
   };
 
   const durationOptions = [
@@ -272,11 +345,19 @@ ${window.location.origin}/share/demo123
 
       {/* Map Background */}
       <div className="relative h-[45vh] overflow-hidden">
-        {/* Real OpenStreetMap */}
+        {/* Real OpenStreetMap with Route */}
         <DynamicMap
           center={location || undefined}
+          destination={destination}
+          waypoints={waypoints}
+          showRoute={showRoute}
           showUserLocation={true}
           markerLabel={location?.name || "موقعك الحالي"}
+          destinationLabel={destination?.name || "الوجهة"}
+          routeStyle={status === "sharing" ? "active" : "planned"}
+          animateMarker={animateMarker}
+          routeInfo={routeInfo}
+          onRouteComplete={handleRouteComplete}
           className="absolute inset-0"
         />
         
@@ -294,6 +375,58 @@ ${window.location.origin}/share/demo123
               <span className="font-medium text-sm">مباشر الآن</span>
               <Radio className="w-4 h-4 animate-pulse" />
             </div>
+          </div>
+        )}
+
+        {/* Route Info Card */}
+        {destination && showRoute && (
+          <div className="absolute top-4 left-4 right-4 z-[600] animate-in slide-in-from-top duration-300">
+            <Card className="p-3 bg-white/95 backdrop-blur-sm shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Route className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">{destination.name}</div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3" />
+                        {routeInfo?.distance.toFixed(1)} كم
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {routeInfo?.duration} دقيقة
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearRoute}
+                  className="text-destructive hover:bg-destructive/10"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              
+              {/* Route progress */}
+              {status === "sharing" && routeProgress > 0 && (
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">تقدم الرحلة</span>
+                    <span className="font-medium text-primary">{routeProgress}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-l from-primary to-teal-light rounded-full transition-all duration-500"
+                      style={{ width: `${routeProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </Card>
           </div>
         )}
 
@@ -351,7 +484,49 @@ ${window.location.origin}/share/demo123
       {/* Main Content */}
       <div className="px-4 py-6 space-y-6 -mt-2 relative z-10">
         {/* Destination Card */}
-        <DestinationCard />
+        {!destination ? (
+          <Card
+            className="p-4 card-shadow cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
+            onClick={() => setShowDestinationModal(true)}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Plus className="w-7 h-7 text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-lg">أضف وجهة</div>
+                <div className="text-sm text-muted-foreground">
+                  حدد وجهتك لتتبع رحلتك
+                </div>
+              </div>
+              <Navigation className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-4 card-shadow border-2 border-primary/30">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <MapPin className="w-7 h-7 text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-lg">{destination.name}</div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span>{routeInfo?.distance.toFixed(1)} كم</span>
+                  <span>•</span>
+                  <span>{routeInfo?.duration} دقيقة</span>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearRoute}
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </Card>
+        )}
 
         {/* Share Button */}
         {status === "idle" && (
@@ -476,18 +651,20 @@ ${window.location.origin}/share/demo123
               </div>
             </Card>
           </Link>
-          <Card className="p-4 card-shadow hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-purple-300 group overflow-hidden relative">
-            <div className="absolute inset-0 bg-purple-50/0 group-hover:bg-purple-50/50 transition-colors" />
-            <div className="flex items-center gap-3 relative z-10">
-              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Eye className="w-6 h-6 text-purple-600" />
+          <Link href="/dashboard">
+            <Card className="p-4 card-shadow hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-purple-300 group overflow-hidden relative">
+              <div className="absolute inset-0 bg-purple-50/0 group-hover:bg-purple-50/50 transition-colors" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Activity className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-medium">لوحة التحكم</div>
+                  <div className="text-xs text-muted-foreground">تحليلات الرحلات</div>
+                </div>
               </div>
-              <div>
-                <div className="font-medium">الوضع الخفي</div>
-                <div className="text-xs text-muted-foreground">أضف خصوصية!</div>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          </Link>
         </div>
 
         {/* Notifications Banner */}
@@ -542,7 +719,7 @@ ${window.location.origin}/share/demo123
         </Card>
 
         {/* Stats Card */}
-        <Link href="/history">
+        <Link href="/dashboard">
           <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10 hover:shadow-xl transition-all cursor-pointer hover:-translate-y-1 group overflow-hidden relative">
             {/* Decorative element */}
             <div className="absolute top-0 left-0 w-24 h-24 bg-primary/10 rounded-full -translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
@@ -587,6 +764,58 @@ ${window.location.origin}/share/demo123
               onClick={handleConfirmShare}
               className="w-full"
             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Destination Modal */}
+      <Dialog open={showDestinationModal} onOpenChange={setShowDestinationModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg">تحديد الوجهة</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleSetDestination}
+                className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-medium">المكتب - وسط البلد</div>
+                    <div className="text-sm text-muted-foreground">3.5 كم • 12 دقيقة</div>
+                  </div>
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  setDestination({ lat: 30.0500, lng: 31.2400, name: "منزل الأهل" });
+                  setShowDestinationModal(false);
+                  toast.success("تم تحديد الوجهة");
+                }}
+                className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-pink-100 flex items-center justify-center">
+                    <Heart className="w-5 h-5 text-pink-600" />
+                  </div>
+                  <div>
+                    <div className="font-medium">منزل الأهل</div>
+                    <div className="text-sm text-muted-foreground">8.2 كم • 25 دقيقة</div>
+                  </div>
+                </div>
+              </button>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowDestinationModal(false)}
+            >
+              إلغاء
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -636,6 +865,15 @@ ${window.location.origin}/share/demo123
         }
       `}</style>
     </main>
+  );
+}
+
+// Building2 icon for destination modal
+function Building2({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    </svg>
   );
 }
 
