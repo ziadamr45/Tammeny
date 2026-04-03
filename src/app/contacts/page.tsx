@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,114 +16,174 @@ import {
   Mail,
   MapPin,
   MoreVertical,
-  X,
   StarOff,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
-// Mock contacts
-const MOCK_CONTACTS = [
-  {
-    id: "1",
-    name: "أحمد علي",
-    phone: "+20 123 456 7890",
-    email: "ahmed@email.com",
-    isFavorite: true,
-    isUser: true,
-  },
-  {
-    id: "2",
-    name: "محمد حسن",
-    phone: "+20 987 654 3210",
-    email: "mohamed@email.com",
-    isFavorite: true,
-    isUser: true,
-  },
-  {
-    id: "3",
-    name: "سارة أحمد",
-    phone: "+20 555 123 4567",
-    email: "sara@email.com",
-    isFavorite: false,
-    isUser: true,
-  },
-  {
-    id: "4",
-    name: "كريم محمد",
-    phone: "+20 111 222 3333",
-    email: "karim@email.com",
-    isFavorite: false,
-    isUser: false,
-  },
-  {
-    id: "5",
-    name: "ليلى سعيد",
-    phone: "+20 444 555 6666",
-    email: "layla@email.com",
-    isFavorite: false,
-    isUser: true,
-  },
-];
+interface Contact {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  relation: string | null;
+  isFavorite: boolean;
+  isEmergencyContact: boolean;
+  notifyOnArrival: boolean;
+  notifyOnEmergency: boolean;
+  createdAt: string;
+}
 
 export default function ContactsPage() {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [contacts, setContacts] = useState(MOCK_CONTACTS);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [newContact, setNewContact] = useState({
     name: "",
     phone: "",
     email: "",
+    relation: "",
   });
+  const router = useRouter();
+
+  // Fetch contacts from API
+  const fetchContacts = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/contacts?userId=${user.id}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts(data.contacts);
+        setError(null);
+      } else {
+        setError(data.error || "فشل في تحميل جهات الاتصال");
+      }
+    } catch (err) {
+      console.error("Error fetching contacts:", err);
+      setError("فشل في الاتصال بالخادم");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Fetch contacts when user is available
+  useEffect(() => {
+    if (user?.id) {
+      fetchContacts();
+    }
+  }, [user?.id, fetchContacts]);
 
   const filteredContacts = contacts.filter(
     (contact) =>
       contact.name.includes(searchQuery) ||
-      contact.phone.includes(searchQuery) ||
-      contact.email.includes(searchQuery)
+      (contact.phone && contact.phone.includes(searchQuery)) ||
+      (contact.email && contact.email.includes(searchQuery))
   );
 
   const favoriteContacts = filteredContacts.filter((c) => c.isFavorite);
   const otherContacts = filteredContacts.filter((c) => !c.isFavorite);
 
-  const handleAddContact = () => {
+  const handleAddContact = async () => {
     if (!newContact.name) {
       toast.error("الاسم مطلوب");
       return;
     }
 
-    setContacts([
-      ...contacts,
-      {
-        id: Date.now().toString(),
-        ...newContact,
-        isFavorite: false,
-        isUser: false,
-      },
-    ]);
+    try {
+      const response = await fetch("/api/contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ...newContact, userId: user?.id }),
+      });
 
-    setNewContact({ name: "", phone: "", email: "" });
-    setShowAddModal(false);
-    toast.success("تمت إضافة جهة الاتصال");
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts([...contacts, data.contact]);
+        setNewContact({ name: "", phone: "", email: "", relation: "" });
+        setShowAddModal(false);
+        toast.success("تمت إضافة جهة الاتصال");
+      } else {
+        toast.error(data.error || "فشل في إضافة جهة الاتصال");
+      }
+    } catch (err) {
+      console.error("Error adding contact:", err);
+      toast.error("فشل في إضافة جهة الاتصال");
+    }
   };
 
-  const handleToggleFavorite = (id: string) => {
-    setContacts(
-      contacts.map((c) =>
-        c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
-      )
-    );
-    toast.success("تم تحديث المفضلة");
+  const handleToggleFavorite = async (id: string) => {
+    const contact = contacts.find((c) => c.id === id);
+    if (!contact) return;
+
+    try {
+      const response = await fetch(`/api/contacts/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          isFavorite: !contact.isFavorite,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts(
+          contacts.map((c) =>
+            c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+          )
+        );
+        toast.success("تم تحديث المفضلة");
+      } else {
+        toast.error(data.error || "فشل في تحديث المفضلة");
+      }
+    } catch (err) {
+      console.error("Error toggling favorite:", err);
+      toast.error("فشل في تحديث المفضلة");
+    }
   };
 
-  const handleDeleteContact = (id: string) => {
-    setContacts(contacts.filter((c) => c.id !== id));
-    toast.success("تم حذف جهة الاتصال");
+  const handleDeleteContact = async (id: string) => {
+    try {
+      const response = await fetch(`/api/contacts/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts(contacts.filter((c) => c.id !== id));
+        toast.success("تم حذف جهة الاتصال");
+      } else {
+        toast.error(data.error || "فشل في حذف جهة الاتصال");
+      }
+    } catch (err) {
+      console.error("Error deleting contact:", err);
+      toast.error("فشل في حذف جهة الاتصال");
+    }
   };
 
-  const handleShareLocation = (contact: typeof MOCK_CONTACTS[0]) => {
+  const handleShareLocation = (contact: Contact) => {
     toast.success(`جاري مشاركة الموقع مع ${contact.name}...`);
   };
 
@@ -155,72 +216,95 @@ export default function ContactsPage() {
           />
         </div>
 
-        {/* Favorites */}
-        {favoriteContacts.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-              المفضلة
-            </h2>
-            <div className="space-y-2">
-              {favoriteContacts.map((contact) => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  onShare={() => handleShareLocation(contact)}
-                  onToggleFavorite={() => handleToggleFavorite(contact.id)}
-                  onDelete={() => handleDeleteContact(contact.id)}
-                />
-              ))}
-            </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
           </div>
         )}
 
-        {/* All Contacts */}
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground mb-3">
-            جميع جهات الاتصال ({otherContacts.length})
-          </h2>
-          <div className="space-y-2">
-            {otherContacts.map((contact) => (
-              <ContactCard
-                key={contact.id}
-                contact={contact}
-                onShare={() => handleShareLocation(contact)}
-                onToggleFavorite={() => handleToggleFavorite(contact.id)}
-                onDelete={() => handleDeleteContact(contact.id)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Empty State */}
-        {filteredContacts.length === 0 && (
-          <div className="text-center py-12">
-            <UserPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-medium text-lg mb-2">لا توجد جهات اتصال</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              أضف جهات اتصال لمشاركة موقعك بسهولة
-            </p>
-            <Button onClick={() => setShowAddModal(true)} variant="outline">
-              <UserPlus className="w-4 h-4 ml-2" />
-              إضافة جهة اتصال
+        {/* Error State */}
+        {error && !loading && (
+          <Card className="p-6 text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={fetchContacts} variant="outline">
+              إعادة المحاولة
             </Button>
-          </div>
+          </Card>
         )}
 
-        {/* Quick Share Info */}
-        <Card className="mt-6 p-4 bg-primary/10 border-0">
-          <div className="flex items-start gap-3">
-            <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+        {/* Contacts List */}
+        {!loading && !error && (
+          <>
+            {/* Favorites */}
+            {favoriteContacts.length > 0 && (
+              <div className="mb-6">
+                <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                  <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                  المفضلة
+                </h2>
+                <div className="space-y-2">
+                  {favoriteContacts.map((contact) => (
+                    <ContactCard
+                      key={contact.id}
+                      contact={contact}
+                      onShare={() => handleShareLocation(contact)}
+                      onToggleFavorite={() => handleToggleFavorite(contact.id)}
+                      onDelete={() => handleDeleteContact(contact.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* All Contacts */}
             <div>
-              <h4 className="font-medium text-primary">مشاركة سريعة</h4>
-              <p className="text-sm text-muted-foreground mt-1">
-                اضغط على زر المشاركة بجوار أي جهة اتصال لمشاركة موقعك معها مباشرة
-              </p>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                جميع جهات الاتصال ({otherContacts.length})
+              </h2>
+              <div className="space-y-2">
+                {otherContacts.map((contact) => (
+                  <ContactCard
+                    key={contact.id}
+                    contact={contact}
+                    onShare={() => handleShareLocation(contact)}
+                    onToggleFavorite={() => handleToggleFavorite(contact.id)}
+                    onDelete={() => handleDeleteContact(contact.id)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        </Card>
+
+            {/* Empty State */}
+            {filteredContacts.length === 0 && (
+              <div className="text-center py-12">
+                <UserPlus className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-medium text-lg mb-2">لا توجد جهات اتصال</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  أضف جهات اتصال لمشاركة موقعك بسهولة
+                </p>
+                <Button onClick={() => setShowAddModal(true)} variant="outline">
+                  <UserPlus className="w-4 h-4 ml-2" />
+                  إضافة جهة اتصال
+                </Button>
+              </div>
+            )}
+
+            {/* Quick Share Info */}
+            <Card className="mt-6 p-4 bg-primary/10 border-0">
+              <div className="flex items-start gap-3">
+                <MapPin className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <h4 className="font-medium text-primary">مشاركة سريعة</h4>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    اضغط على زر المشاركة بجوار أي جهة اتصال لمشاركة موقعك معها مباشرة
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </>
+        )}
       </div>
 
       <BottomNav />
@@ -261,6 +345,26 @@ export default function ContactsPage() {
                 dir="ltr"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">صلة القرابة</label>
+              <div className="flex flex-wrap gap-2">
+                {["أب", "أم", "أخ", "أخت", "زوج", "زوجة", "صديق", "زميل"].map((rel) => (
+                  <button
+                    key={rel}
+                    type="button"
+                    onClick={() => setNewContact({ ...newContact, relation: rel })}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-sm border-2 transition-all",
+                      newContact.relation === rel
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    {rel}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
@@ -289,7 +393,7 @@ function ContactCard({
   onToggleFavorite,
   onDelete,
 }: {
-  contact: typeof MOCK_CONTACTS[0];
+  contact: Contact;
   onShare: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
@@ -307,16 +411,18 @@ function ContactCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium truncate">{contact.name}</span>
-            {contact.isUser && (
-              <Badge variant="secondary" className="text-xs bg-primary/10 text-primary">
-                مستخدم طمنّي
+            {contact.relation && (
+              <Badge variant="secondary" className="text-xs">
+                {contact.relation}
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Phone className="w-3 h-3" />
-            <span className="truncate">{contact.phone}</span>
-          </div>
+          {contact.phone && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Phone className="w-3 h-3" />
+              <span className="truncate">{contact.phone}</span>
+            </div>
+          )}
         </div>
         
         {/* Quick Share Button */}

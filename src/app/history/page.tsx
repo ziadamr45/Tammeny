@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import {
   Train,
   Eye,
   Map,
+  Loader2,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { LocationTimeline, LocationStats, LocationEntry, LocationType } from "@/components/tamenny/location-timeline";
@@ -56,6 +57,7 @@ import {
   formatArabicDate,
   formatArabicTime,
 } from "@/lib/arabic-numerals";
+import { useAuth } from "@/hooks/use-auth";
 
 // Mock session history
 const SESSION_HISTORY = [
@@ -211,12 +213,20 @@ type LocationTypeFilter = "all" | LocationType;
 
 export default function HistoryPage() {
   const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [selectedSession, setSelectedSession] = useState<typeof SESSION_HISTORY[0] | null>(null);
   const [filter, setFilter] = useState<FilterType>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("month");
   const [viewMode, setViewMode] = useState<ViewMode>("sessions");
   const [locationTypeFilter, setLocationTypeFilter] = useState<LocationTypeFilter>("all");
   const [showExportDialog, setShowExportDialog] = useState(false);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   // Filter sessions
   const filteredSessions = useMemo(() => {
@@ -341,38 +351,49 @@ export default function HistoryPage() {
       <Header />
 
       <div className="pt-16 px-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">السجل</h1>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => setShowExportDialog(true)}
-            >
-              <Download className="w-4 h-4" />
-              تصدير
-            </Button>
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
           </div>
-        </div>
+        )}
 
-        {/* Stats Overview */}
-        <div className="grid grid-cols-4 gap-2">
-          <Card className="p-3 text-center card-shadow">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-1">
-              <Route className="w-4 h-4 text-primary" />
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold">السجل</h1>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setShowExportDialog(true)}
+                >
+                  <Download className="w-4 h-4" />
+                  تصدير
+                </Button>
+              </div>
             </div>
-            <div className="text-lg font-bold text-primary">{toArabicNumerals(stats.totalTrips)}</div>
-            <div className="text-xs text-muted-foreground">رحلة</div>
-          </Card>
-          <Card className="p-3 text-center card-shadow">
-            <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center mx-auto mb-1">
-              <MapPin className="w-4 h-4 text-green-600" />
-            </div>
-            <div className="text-lg font-bold text-green-600">{toArabicNumerals(stats.totalDistance.toFixed(0))}</div>
-            <div className="text-xs text-muted-foreground">كم</div>
-          </Card>
+
+            {/* Stats Overview */}
+            <div className="grid grid-cols-4 gap-2">
+              <Card className="p-3 text-center card-shadow">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-1">
+                  <Route className="w-4 h-4 text-primary" />
+                </div>
+                <div className="text-lg font-bold text-primary">{toArabicNumerals(stats.totalTrips)}</div>
+                <div className="text-xs text-muted-foreground">رحلة</div>
+              </Card>
+              <Card className="p-3 text-center card-shadow">
+                <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center mx-auto mb-1">
+                  <MapPin className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="text-lg font-bold text-green-600">{toArabicNumerals(stats.totalDistance.toFixed(0))}</div>
+                <div className="text-xs text-muted-foreground">كم</div>
+              </Card>
           <Card className="p-3 text-center card-shadow">
             <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mx-auto mb-1">
               <Timer className="w-4 h-4 text-blue-600" />
@@ -661,6 +682,8 @@ export default function HistoryPage() {
             </div>
           </div>
         </Card>
+          </>
+        )}
       </div>
 
       <BottomNav />

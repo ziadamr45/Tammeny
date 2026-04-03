@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,10 +28,12 @@ import {
   Search,
   Map,
   Target,
+  Loader2,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 const DURATION_OPTIONS = [
   { value: 5, label: "٥ دقائق", description: "مشاركة سريعة", icon: Zap, color: "bg-yellow-500" },
@@ -41,6 +44,8 @@ const DURATION_OPTIONS = [
 ];
 
 export default function SharePage() {
+  const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [selectedDuration, setSelectedDuration] = useState(5);
   const [destination, setDestination] = useState("");
   const [showDestinationSearch, setShowDestinationSearch] = useState(false);
@@ -53,6 +58,13 @@ export default function SharePage() {
   const [copied, setCopied] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   // Get current location
   useEffect(() => {
@@ -162,50 +174,61 @@ ${shareLink}
       <Header />
 
       <div className="pt-16 px-4 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">شارك موقعك</h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span>GPS نشط</span>
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
           </div>
-        </div>
+        )}
 
-        {/* Location Status Card */}
-        <Card className="p-4 card-shadow bg-gradient-to-l from-primary/10 to-teal-dark/5 border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-primary" />
-            </div>
-            <div className="flex-1">
-              <div className="text-sm text-muted-foreground">موقعك الحالي</div>
-              <div className="font-medium">
-                {location ? "تم تحديد الموقع" : "جاري التحديد..."}
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h1 className="text-xl font-bold">شارك موقعك</h1>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span>GPS نشط</span>
               </div>
             </div>
-            {location && (
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                <Check className="w-4 h-4 text-green-600" />
-              </div>
-            )}
-          </div>
-        </Card>
 
-        {/* Duration Selection */}
-        <Card className="p-4 card-shadow">
-          <h3 className="font-medium mb-4 flex items-center gap-2">
-            <Clock className="w-5 h-5 text-primary" />
-            مدة المشاركة
-          </h3>
-          <div className="space-y-2">
-            {DURATION_OPTIONS.map((option) => {
-              const IconComponent = option.icon;
-              const isSelected = selectedDuration === option.value;
-              
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setSelectedDuration(option.value)}
+            {/* Location Status Card */}
+            <Card className="p-4 card-shadow bg-gradient-to-l from-primary/10 to-teal-dark/5 border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <MapPin className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-muted-foreground">موقعك الحالي</div>
+                  <div className="font-medium">
+                    {location ? "تم تحديد الموقع" : "جاري التحديد..."}
+                  </div>
+                </div>
+                {location && (
+                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                    <Check className="w-4 h-4 text-green-600" />
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Duration Selection */}
+            <Card className="p-4 card-shadow">
+              <h3 className="font-medium mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                مدة المشاركة
+              </h3>
+              <div className="space-y-2">
+                {DURATION_OPTIONS.map((option) => {
+                  const IconComponent = option.icon;
+                  const isSelected = selectedDuration === option.value;
+                  
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setSelectedDuration(option.value)}
                   className={cn(
                     "w-full p-4 rounded-xl border-2 text-right transition-all duration-300 relative overflow-hidden group",
                     isSelected
@@ -465,6 +488,8 @@ ${shareLink}
         <p className="text-center text-sm text-muted-foreground">
           سيتم إنشاء رابط مشفر آمن لمشاركة موقعك
         </p>
+          </>
+        )}
       </div>
 
       <BottomNav />

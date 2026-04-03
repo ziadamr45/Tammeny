@@ -1,12 +1,13 @@
 // This is your Prisma schema file for Tamenny (طمنّي)
+// PostgreSQL on Neon
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:/home/z/my-project/db/tamenny.db"
+  provider = "postgresql"
+  url      = "postgresql://neondb_owner:npg_GYFzwdA05vfb@ep-mute-dream-an1391io-pooler.c-6.us-east-1.aws.neon.tech/neondb"
 }
 
 // User model for authentication
@@ -24,13 +25,87 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Relations
-  sessions      Session[]
-  sentMessages  Message[] @relation("SenderMessages")
+  sessions        Session[]
+  sentMessages    Message[] @relation("SenderMessages")
   receivedMessages Message[] @relation("ReceiverMessages")
-  contacts      Contact[]
-  notifications Notification[]
+  contacts        Contact[]
+  emergencyContacts EmergencyContact[]
+  groupsCreated   Group[] @relation("GroupCreator")
+  groupMemberships GroupMember[]
+  safeZones       SafeZone[]
+  notifications   Notification[]
+  tripHistory     TripHistory[]
 
   @@map("users")
+}
+
+// Contact model for user's contacts
+model Contact {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  phone       String?
+  email       String?
+  relation    String?   // أب, أم, أخ, أخت, زوج, زوجة, صديق, زميل
+  isFavorite  Boolean   @default(false)
+  isEmergencyContact Boolean @default(false)
+  notifyOnArrival Boolean @default(false)
+  notifyOnEmergency Boolean @default(true)
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("contacts")
+}
+
+// Emergency Contact model (priority contacts for SOS)
+model EmergencyContact {
+  id          String    @id @default(cuid())
+  userId      String
+  contactId   String?   // Reference to Contact if exists
+  name        String
+  phone       String
+  relation    String?
+  priority    Int       @default(1)  // 1 = highest priority
+  createdAt   DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("emergency_contacts")
+}
+
+// Group model for group sharing
+model Group {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  createdBy   String
+  createdAt   DateTime  @default(now())
+
+  creator     User      @relation("GroupCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+
+  @@index([createdBy])
+  @@map("groups")
+}
+
+// Group Member model
+model GroupMember {
+  id          String    @id @default(cuid())
+  groupId     String
+  userId      String
+  role        String    @default("member") // "admin" | "member"
+  joinedAt    DateTime  @default(now())
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+  @@map("group_members")
 }
 
 // Session model for location sharing
@@ -132,28 +207,31 @@ model Message {
   @@map("messages")
 }
 
-// Contacts for quick sharing
-model Contact {
-  id          String    @id @default(cuid())
-  userId      String
-  contactUserId String? // If contact is also a user
-  name        String
-  phone       String?
-  email       String?
-  isFavorite  Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+// Safe Zone model for geofencing
+model SafeZone {
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  type            String    @default("other") // "home" | "work" | "school" | "family" | "shopping" | "favorite" | "other"
+  latitude        Float
+  longitude       Float
+  radius          Int       @default(200) // in meters
+  color           String    @default("safe") // "safe" | "caution"
+  notifyOnEnter   Boolean   @default(true)
+  notifyOnExit    Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
-  @@map("contacts")
+  @@map("safe_zones")
 }
 
-// Notifications
+// Notification model
 model Notification {
   id          String    @id @default(cuid())
   userId      String
-  type        String    // "arrived" | "nearby" | "session_expired" | "new_viewer"
+  type        String    // "arrived" | "nearby" | "session_expired" | "new_viewer" | "sos" | "safe_zone"
   title       String
   message     String
   data        String?   // JSON data
@@ -165,4 +243,30 @@ model Notification {
   
   @@index([userId])
   @@map("notifications")
+}
+
+// Trip History model
+model TripHistory {
+  id            String    @id @default(cuid())
+  userId        String
+  startLocation String
+  endLocation   String?
+  startLat      Float?
+  startLng      Float?
+  endLat        Float?
+  endLng        Float?
+  distance      Float     @default(0) // in km
+  duration      Int       @default(0) // in minutes
+  startTime     DateTime  @default(now())
+  endTime       DateTime?
+  status        String    @default("completed") // "completed" | "cancelled"
+  transportMode String    @default("car") // "car" | "walking" | "bike"
+  sharedWith    String?   // JSON array of names
+  locationType  String    @default("other") // "home" | "work" | "school" | "family" | "shopping" | "favorite" | "other"
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("trip_history")
 }

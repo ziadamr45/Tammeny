@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,9 +27,11 @@ import {
   Smartphone,
   Mail,
   MessageCircle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Notification {
   id: string;
@@ -97,6 +99,7 @@ const NOTIFICATIONS: Notification[] = [
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [notifications, setNotifications] = useState(NOTIFICATIONS);
   const [settings, setSettings] = useState({
     arrivals: true,
@@ -108,6 +111,13 @@ export default function NotificationsPage() {
     email: false,
     sms: false,
   });
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -158,16 +168,26 @@ export default function NotificationsPage() {
       </header>
 
       <div className="px-4 py-4">
-        <Tabs defaultValue="notifications" className="w-full">
-          <TabsList className="w-full grid grid-cols-2 mb-4">
-            <TabsTrigger value="notifications" className="gap-2">
-              <Bell className="w-4 h-4" />
-              الإشعارات
-              {unreadCount > 0 && (
-                <Badge className="h-5 w-5 p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground">
-                  {unreadCount}
-                </Badge>
-              )}
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
+          </div>
+        )}
+
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <Tabs defaultValue="notifications" className="w-full">
+            <TabsList className="w-full grid grid-cols-2 mb-4">
+              <TabsTrigger value="notifications" className="gap-2">
+                <Bell className="w-4 h-4" />
+                الإشعارات
+                {unreadCount > 0 && (
+                  <Badge className="h-5 w-5 p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground">
+                    {unreadCount}
+                  </Badge>
+                )}
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="w-4 h-4" />
@@ -347,6 +367,7 @@ export default function NotificationsPage() {
             </Card>
           </TabsContent>
         </Tabs>
+        )}
       </div>
     </main>
   );

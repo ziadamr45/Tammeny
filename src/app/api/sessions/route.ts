@@ -1,138 +1,138 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
-import { generateEncryptedId, generateAccessToken } from "@/lib/encryption";
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
+import { DEMO_USER_ID } from '../demo-user/route';
 
-// Create a new session
-export async function POST(request: NextRequest) {
+// GET - List all sessions/trip history for a user
+export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    const body = await request.json();
-    const {
-      duration,
-      sessionType,
-      startLat,
-      startLng,
-      destLat,
-      destLng,
-      destName,
-      isGhostMode,
-      isRestricted,
-      allowedEmails,
-    } = body;
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId') || DEMO_USER_ID;
+    const status = searchParams.get('status'); // 'active', 'completed', 'cancelled', 'all'
+    const limit = parseInt(searchParams.get('limit') || '50');
 
-    // Validation
-    if (!duration || !startLat || !startLng) {
-      return NextResponse.json(
-        { error: "المدة والموقع الحالي مطلوبان" },
-        { status: 400 }
-      );
-    }
-
-    // Determine expiration time
-    let expiresAt: Date | null = null;
-    if (duration > 0) {
-      expiresAt = new Date(Date.now() + duration * 60 * 1000);
-    } else {
-      // Until arrival - max 24 hours
-      expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    }
-
-    // Create session
-    const session = await db.session.create({
-      data: {
-        creatorId: user?.userId || "demo-user",
-        encryptedId: "", // Will be updated after creation
-        duration,
-        sessionType: sessionType || "minutes",
-        startLat,
-        startLng,
-        currentLat: startLat,
-        currentLng: startLng,
-        destLat: destLat || null,
-        destLng: destLng || null,
-        destName: destName || null,
-        isGhostMode: isGhostMode || false,
-        isRestricted: isRestricted || false,
-        expiresAt,
+    // Get trip history
+    const tripHistory = await db.tripHistory.findMany({
+      where: {
+        userId,
+        ...(status && status !== 'all' ? { status } : {}),
       },
+      orderBy: { startTime: 'desc' },
+      take: limit,
     });
 
-    // Generate encrypted ID
-    const encryptedId = generateEncryptedId(session.id);
-    
-    // Update session with encrypted ID
-    await db.session.update({
-      where: { id: session.id },
-      data: { encryptedId },
+    // Get active sessions
+    const activeSessions = await db.session.findMany({
+      where: {
+        creatorId: userId,
+        status: 'active',
+      },
+      orderBy: { startedAt: 'desc' },
     });
-
-    // If restricted, create allowed users
-    if (isRestricted && allowedEmails?.length > 0) {
-      await db.allowedUser.createMany({
-        data: allowedEmails.map((email: string) => ({
-          sessionId: session.id,
-          email,
-          token: generateAccessToken(),
-        })),
-      });
-    }
-
-    // Generate share message
-    const shareUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/share/${encodeURIComponent(encryptedId)}`;
-    const durationText = duration === -1 
-      ? "حتى الوصول" 
-      : duration >= 60 
-        ? `${duration / 60} ساعة` 
-        : `${duration} دقيقة`;
-    
-    const shareMessage = `أنا مشارك موقعي معاك لمدة ${durationText} ⏱️
-تابعني لحظة بلحظة من هنا 👇
-${shareUrl}
-ولو الرابط فتح عندك متأخر، حمّل التطبيق عشان تشوفني مباشر 📍`;
 
     return NextResponse.json({
-      session: {
-        id: session.id,
-        encryptedId,
-        shareUrl,
-        shareMessage,
-        expiresAt,
-      },
+      success: true,
+      tripHistory: tripHistory.map((t) => ({
+        id: t.id,
+        startLocation: t.startLocation,
+        endLocation: t.endLocation,
+        distance: t.distance,
+        duration: t.duration,
+        startTime: t.startTime,
+        endTime: t.endTime,
+        status: t.status,
+        transportMode: t.transportMode,
+        sharedWith: t.sharedWith ? JSON.parse(t.sharedWith) : [],
+        locationType: t.locationType,
+        createdAt: t.createdAt,
+      })),
+      activeSessions: activeSessions.map((s) => ({
+        id: s.id,
+        encryptedId: s.encryptedId,
+        duration: s.duration,
+        sessionType: s.sessionType,
+        destName: s.destName,
+        status: s.status,
+        startedAt: s.startedAt,
+        expiresAt: s.expiresAt,
+        totalDistance: s.totalDistance,
+        totalDuration: s.totalDuration,
+      })),
     });
   } catch (error) {
-    console.error("Create session error:", error);
+    console.error('Error fetching sessions:', error);
     return NextResponse.json(
-      { error: "حدث خطأ أثناء إنشاء الجلسة" },
+      { success: false, error: 'Failed to fetch sessions' },
       { status: 500 }
     );
   }
 }
 
-// Get sessions for current user
-export async function GET() {
+// POST - Create a new session or trip history
+export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user) {
+    const body = await request.json();
+    const {
+      userId,
+      startLocation,
+      endLocation,
+      startLat,
+      startLng,
+      endLat,
+      endLng,
+      distance,
+      duration,
+      transportMode,
+      sharedWith,
+      locationType,
+      status,
+    } = body;
+
+    if (!startLocation) {
       return NextResponse.json(
-        { error: "غير مصرح" },
-        { status: 401 }
+        { success: false, error: 'موقع البداية مطلوب' },
+        { status: 400 }
       );
     }
 
-    const sessions = await db.session.findMany({
-      where: { creatorId: user.userId },
-      orderBy: { startedAt: "desc" },
-      take: 20,
+    const tripHistory = await db.tripHistory.create({
+      data: {
+        userId: userId || DEMO_USER_ID,
+        startLocation,
+        endLocation: endLocation || null,
+        startLat: startLat || null,
+        startLng: startLng || null,
+        endLat: endLat || null,
+        endLng: endLng || null,
+        distance: distance || 0,
+        duration: duration || 0,
+        transportMode: transportMode || 'car',
+        sharedWith: sharedWith ? JSON.stringify(sharedWith) : null,
+        locationType: locationType || 'other',
+        status: status || 'completed',
+      },
     });
 
-    return NextResponse.json({ sessions });
+    return NextResponse.json({
+      success: true,
+      tripHistory: {
+        id: tripHistory.id,
+        startLocation: tripHistory.startLocation,
+        endLocation: tripHistory.endLocation,
+        distance: tripHistory.distance,
+        duration: tripHistory.duration,
+        startTime: tripHistory.startTime,
+        endTime: tripHistory.endTime,
+        status: tripHistory.status,
+        transportMode: tripHistory.transportMode,
+        sharedWith: tripHistory.sharedWith ? JSON.parse(tripHistory.sharedWith) : [],
+        locationType: tripHistory.locationType,
+        createdAt: tripHistory.createdAt,
+      },
+    });
   } catch (error) {
-    console.error("Get sessions error:", error);
+    console.error('Error creating session:', error);
     return NextResponse.json(
-      { error: "حدث خطأ أثناء جلب الجلسات" },
+      { success: false, error: 'Failed to create session' },
       { status: 500 }
     );
   }

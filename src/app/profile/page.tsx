@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,9 +25,11 @@ import {
   Save,
   Trash2,
   AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 interface UserProfile {
   name: string;
@@ -53,7 +55,8 @@ const INITIAL_PROFILE: UserProfile = {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile>(INITIAL_PROFILE);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [localProfileOverrides, setLocalProfileOverrides] = useState<Partial<UserProfile>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState<UserProfile>(INITIAL_PROFILE);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -70,6 +73,28 @@ export default function ProfilePage() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Compute profile from user data with local overrides
+  const profile = useMemo<UserProfile>(() => {
+    const baseProfile: UserProfile = user ? {
+      name: user.name,
+      email: user.email,
+      phone: user.phone || "",
+      avatar: user.avatar,
+      address: "",
+      gender: (user.gender as "male" | "female") || "male",
+      notifications: true,
+      ghostMode: false,
+    } : INITIAL_PROFILE;
+    return { ...baseProfile, ...localProfileOverrides };
+  }, [user, localProfileOverrides]);
+
   const handleEdit = () => {
     setEditedProfile(profile);
     setIsEditing(true);
@@ -81,7 +106,7 @@ export default function ProfilePage() {
   };
 
   const handleSaveEdit = () => {
-    setProfile(editedProfile);
+    setLocalProfileOverrides(editedProfile);
     setIsEditing(false);
     toast.success("تم حفظ التغييرات بنجاح!");
   };
@@ -99,7 +124,7 @@ export default function ProfilePage() {
         if (isEditing) {
           setEditedProfile({ ...editedProfile, avatar: newAvatar });
         } else {
-          setProfile({ ...profile, avatar: newAvatar });
+          setLocalProfileOverrides({ ...localProfileOverrides, avatar: newAvatar });
         }
         toast.success("تم تحديث الصورة الشخصية!");
       };
@@ -158,13 +183,24 @@ export default function ProfilePage() {
       </header>
 
       <div className="px-4 py-6 space-y-6">
-        {/* Avatar Section */}
-        <Card className="p-6 card-shadow text-center">
-          <div className="relative inline-block">
-            <Avatar className="w-28 h-28 border-4 border-primary/20 mx-auto cursor-pointer group" onClick={handleAvatarClick}>
-              <AvatarImage src={profile.avatar || undefined} />
-              <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-4xl font-bold">
-                {profile.name[0]}
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
+          </div>
+        )}
+
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <>
+            {/* Avatar Section */}
+            <Card className="p-6 card-shadow text-center">
+              <div className="relative inline-block">
+                <Avatar className="w-28 h-28 border-4 border-primary/20 mx-auto cursor-pointer group" onClick={handleAvatarClick}>
+                  <AvatarImage src={profile.avatar || undefined} />
+                  <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-4xl font-bold">
+                    {profile.name[0]}
               </AvatarFallback>
             </Avatar>
             <button
@@ -364,7 +400,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => {
-                  setProfile({ ...profile, notifications: !profile.notifications });
+                  setLocalProfileOverrides({ ...localProfileOverrides, notifications: !profile.notifications });
                   toast.success(profile.notifications ? "تم إيقاف الإشعارات" : "تم تفعيل الإشعارات");
                 }}
                 className={cn(
@@ -392,7 +428,7 @@ export default function ProfilePage() {
               </div>
               <button
                 onClick={() => {
-                  setProfile({ ...profile, ghostMode: !profile.ghostMode });
+                  setLocalProfileOverrides({ ...localProfileOverrides, ghostMode: !profile.ghostMode });
                   toast.success(profile.ghostMode ? "تم إيقاف الوضع الخفي" : "تم تفعيل الوضع الخفي");
                 }}
                 className={cn(
@@ -427,6 +463,8 @@ export default function ProfilePage() {
             حذف الحساب
           </Button>
         </Card>
+          </>
+        )}
       </div>
 
       {/* Change Password Dialog */}

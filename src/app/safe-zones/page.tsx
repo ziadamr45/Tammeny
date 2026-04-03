@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,25 +45,26 @@ import {
   AlertTriangle,
   Navigation,
   Shield,
+  Loader2,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { DynamicMap } from "@/components/tamenny/map-component";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 // Types
 interface SafeZone {
   id: string;
   name: string;
-  type: ZoneType;
-  lat: number;
-  lng: number;
+  type: string;
+  latitude: number;
+  longitude: number;
   radius: number;
-  color: ZoneColor;
-  notifications: boolean;
-  enterAlert: boolean;
-  exitAlert: boolean;
-  createdAt: Date;
+  color: string;
+  notifyOnEnter: boolean;
+  notifyOnExit: boolean;
+  createdAt: string;
 }
 
 type ZoneType = "home" | "work" | "school" | "family" | "shopping" | "favorite" | "other";
@@ -79,51 +81,12 @@ const zoneTypeConfig: Record<ZoneType, { icon: React.ElementType; label: string;
   other: { icon: MapPin, label: "أخرى", defaultColor: "caution" },
 };
 
-// Mock initial safe zones
-const INITIAL_ZONES: SafeZone[] = [
-  {
-    id: "1",
-    name: "المنزل",
-    type: "home",
-    lat: 30.0444,
-    lng: 31.2357,
-    radius: 200,
-    color: "safe",
-    notifications: true,
-    enterAlert: true,
-    exitAlert: true,
-    createdAt: new Date("2025-01-15"),
-  },
-  {
-    id: "2",
-    name: "العمل",
-    type: "work",
-    lat: 30.0564,
-    lng: 31.2273,
-    radius: 150,
-    color: "caution",
-    notifications: true,
-    enterAlert: true,
-    exitAlert: false,
-    createdAt: new Date("2025-02-10"),
-  },
-  {
-    id: "3",
-    name: "مدرسة الأبناء",
-    type: "school",
-    lat: 30.0334,
-    lng: 31.2427,
-    radius: 100,
-    color: "safe",
-    notifications: true,
-    enterAlert: true,
-    exitAlert: true,
-    createdAt: new Date("2025-03-01"),
-  },
-];
-
 export default function SafeZonesPage() {
-  const [zones, setZones] = useState<SafeZone[]>(INITIAL_ZONES);
+  const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [zones, setZones] = useState<SafeZone[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -136,73 +99,136 @@ export default function SafeZonesPage() {
     type: "other",
     radius: 200,
     color: "safe",
-    notifications: true,
-    enterAlert: true,
-    exitAlert: true,
-    lat: 30.0444,
-    lng: 31.2357,
+    notifyOnEnter: true,
+    notifyOnExit: true,
+    latitude: 30.0444,
+    longitude: 31.2357,
   });
 
-  const handleAddZone = () => {
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Fetch safe zones from API
+  const fetchZones = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await fetch("/api/safe-zones");
+      const data = await response.json();
+
+      if (data.success) {
+        setZones(data.safeZones);
+        setError(null);
+      } else {
+        setError(data.error || "فشل في تحميل المناطق الآمنة");
+      }
+    } catch (err) {
+      console.error("Error fetching safe zones:", err);
+      setError("فشل في الاتصال بالخادم");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  // Fetch zones when user is available
+  useEffect(() => {
+    if (user?.id) {
+      fetchZones();
+    }
+  }, [user?.id, fetchZones]);
+
+  const handleAddZone = async () => {
     if (!newZone.name) {
       toast.error("الرجاء إدخال اسم المنطقة");
       return;
     }
 
-    const zone: SafeZone = {
-      id: Date.now().toString(),
-      name: newZone.name || "",
-      type: newZone.type || "other",
-      lat: newZone.lat || 30.0444,
-      lng: newZone.lng || 31.2357,
-      radius: newZone.radius || 200,
-      color: newZone.color || "safe",
-      notifications: newZone.notifications ?? true,
-      enterAlert: newZone.enterAlert ?? true,
-      exitAlert: newZone.exitAlert ?? true,
-      createdAt: new Date(),
-    };
+    try {
+      const response = await fetch("/api/safe-zones", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newZone),
+      });
 
-    setZones([...zones, zone]);
-    setShowAddDialog(false);
-    resetNewZone();
-    toast.success("تم إضافة المنطقة الآمنة بنجاح");
+      const data = await response.json();
+
+      if (data.success) {
+        setZones([...zones, data.safeZone]);
+        setShowAddDialog(false);
+        resetNewZone();
+        toast.success("تم إضافة المنطقة الآمنة بنجاح");
+      } else {
+        toast.error(data.error || "فشل في إضافة المنطقة الآمنة");
+      }
+    } catch (err) {
+      console.error("Error adding zone:", err);
+      toast.error("فشل في إضافة المنطقة الآمنة");
+    }
   };
 
-  const handleEditZone = () => {
+  const handleEditZone = async () => {
     if (!selectedZone || !newZone.name) {
       toast.error("الرجاء إدخال اسم المنطقة");
       return;
     }
 
-    setZones(zones.map((z) =>
-      z.id === selectedZone.id
-        ? { ...z, ...newZone, name: newZone.name || z.name }
-        : z
-    ));
-    setShowEditDialog(false);
-    setSelectedZone(null);
-    resetNewZone();
-    toast.success("تم تحديث المنطقة الآمنة");
+    try {
+      const response = await fetch(`/api/safe-zones/${selectedZone.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(newZone),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setZones(zones.map((z) =>
+          z.id === selectedZone.id ? data.safeZone : z
+        ));
+        setShowEditDialog(false);
+        setSelectedZone(null);
+        resetNewZone();
+        toast.success("تم تحديث المنطقة الآمنة");
+      } else {
+        toast.error(data.error || "فشل في تحديث المنطقة الآمنة");
+      }
+    } catch (err) {
+      console.error("Error editing zone:", err);
+      toast.error("فشل في تحديث المنطقة الآمنة");
+    }
   };
 
-  const handleDeleteZone = () => {
+  const handleDeleteZone = async () => {
     if (!selectedZone) return;
 
-    setZones(zones.filter((z) => z.id !== selectedZone.id));
-    setShowDeleteDialog(false);
-    setSelectedZone(null);
-    toast.success("تم حذف المنطقة الآمنة");
-  };
+    try {
+      const response = await fetch(`/api/safe-zones/${selectedZone.id}`, {
+        method: "DELETE",
+      });
 
-  const toggleNotifications = (zoneId: string) => {
-    setZones(
-      zones.map((z) =>
-        z.id === zoneId ? { ...z, notifications: !z.notifications } : z
-      )
-    );
-    const zone = zones.find((z) => z.id === zoneId);
-    toast.success(zone?.notifications ? "تم إيقاف الإشعارات" : "تم تفعيل الإشعارات");
+      const data = await response.json();
+
+      if (data.success) {
+        setZones(zones.filter((z) => z.id !== selectedZone.id));
+        setShowDeleteDialog(false);
+        setSelectedZone(null);
+        toast.success("تم حذف المنطقة الآمنة");
+      } else {
+        toast.error(data.error || "فشل في حذف المنطقة الآمنة");
+      }
+    } catch (err) {
+      console.error("Error deleting zone:", err);
+      toast.error("فشل في حذف المنطقة الآمنة");
+    }
   };
 
   const openEditDialog = (zone: SafeZone) => {
@@ -212,11 +238,10 @@ export default function SafeZonesPage() {
       type: zone.type,
       radius: zone.radius,
       color: zone.color,
-      notifications: zone.notifications,
-      enterAlert: zone.enterAlert,
-      exitAlert: zone.exitAlert,
-      lat: zone.lat,
-      lng: zone.lng,
+      notifyOnEnter: zone.notifyOnEnter,
+      notifyOnExit: zone.notifyOnExit,
+      latitude: zone.latitude,
+      longitude: zone.longitude,
     });
     setShowEditDialog(true);
   };
@@ -232,11 +257,10 @@ export default function SafeZonesPage() {
       type: "other",
       radius: 200,
       color: "safe",
-      notifications: true,
-      enterAlert: true,
-      exitAlert: true,
-      lat: 30.0444,
-      lng: 31.2357,
+      notifyOnEnter: true,
+      notifyOnExit: true,
+      latitude: 30.0444,
+      longitude: 31.2357,
     });
   };
 
@@ -248,156 +272,187 @@ export default function SafeZonesPage() {
       <Header />
 
       <div className="pt-16 px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold">المناطق الآمنة</h1>
-            <p className="text-sm text-muted-foreground">
-              {zones.length} منطقة محفوظة
-            </p>
-          </div>
-          <Button
-            onClick={() => setShowAddDialog(true)}
-            className="bg-primary rounded-xl"
-          >
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة منطقة
-          </Button>
-        </div>
-
-        {/* Info Banner */}
-        <Card className="mb-4 p-4 bg-gradient-to-l from-primary/10 to-teal-500/5 border-primary/20">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <h4 className="font-medium text-primary">نظام المناطق الآمنة</h4>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                احصل على إشعارات عند دخول أو خروج أصدقائك من المناطق المحددة
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Safe Zones */}
-        {safeZones.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-              <h2 className="font-semibold">مناطق آمنة</h2>
-              <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                {safeZones.length}
-              </Badge>
-            </div>
-            <div className="space-y-3">
-              {safeZones.map((zone) => (
-                <ZoneCard
-                  key={zone.id}
-                  zone={zone}
-                  onToggleNotifications={toggleNotifications}
-                  onEdit={openEditDialog}
-                  onDelete={openDeleteDialog}
-                  onShowMap={setShowMapPreview}
-                  showMapPreview={showMapPreview === zone.id}
-                />
-              ))}
-            </div>
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
           </div>
         )}
 
-        {/* Caution Zones */}
-        {cautionZones.length > 0 && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
-              <h2 className="font-semibold">مناطق تنبيه</h2>
-              <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                {cautionZones.length}
-              </Badge>
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-xl font-bold">المناطق الآمنة</h1>
+                <p className="text-sm text-muted-foreground">
+                  {zones.length} منطقة محفوظة
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowAddDialog(true)}
+                className="bg-primary rounded-xl"
+              >
+                <Plus className="w-4 h-4 ml-2" />
+                إضافة منطقة
+              </Button>
             </div>
-            <div className="space-y-3">
-              {cautionZones.map((zone) => (
-                <ZoneCard
-                  key={zone.id}
-                  zone={zone}
-                  onToggleNotifications={toggleNotifications}
-                  onEdit={openEditDialog}
-                  onDelete={openDeleteDialog}
-                  onShowMap={setShowMapPreview}
-                  showMapPreview={showMapPreview === zone.id}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Empty State */}
-        {zones.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <MapPin className="w-10 h-10 text-primary" />
-            </div>
-            <h3 className="font-medium text-lg mb-2">لا توجد مناطق آمنة</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              أضف مناطق آمنة للحصول على إشعارات عند الدخول والخروج
-            </p>
-            <Button
-              onClick={() => setShowAddDialog(true)}
-              variant="outline"
-              className="rounded-xl"
-            >
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة منطقة جديدة
-            </Button>
-          </div>
-        )}
-
-        {/* Stats Cards */}
-        {zones.length > 0 && (
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                <div>
-                  <div className="text-2xl font-bold text-green-600">{safeZones.length}</div>
-                  <div className="text-xs text-green-600/70">منطقة آمنة</div>
+            {/* Info Banner */}
+            <Card className="mb-4 p-4 bg-gradient-to-l from-primary/10 to-teal-500/5 border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-medium text-primary">نظام المناطق الآمنة</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    احصل على إشعارات عند دخول أو خروج أصدقائك من المناطق المحددة
+                  </p>
                 </div>
               </div>
             </Card>
-            <Card className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                <div>
-                  <div className="text-2xl font-bold text-yellow-600">{cautionZones.length}</div>
-                  <div className="text-xs text-yellow-600/70">منطقة تنبيه</div>
+
+            {/* Loading State */}
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground">جاري التحميل...</p>
+              </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+              <Card className="p-6 text-center">
+                <p className="text-destructive mb-4">{error}</p>
+                <Button onClick={fetchZones} variant="outline">
+                  إعادة المحاولة
+                </Button>
+              </Card>
+            )}
+
+            {/* Safe Zones */}
+            {!loading && !error && safeZones.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <h2 className="font-semibold">مناطق آمنة</h2>
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    {safeZones.length}
+                  </Badge>
+                </div>
+                <div className="space-y-3">
+                  {safeZones.map((zone) => (
+                    <ZoneCard
+                      key={zone.id}
+                      zone={zone}
+                      onEdit={openEditDialog}
+                      onDelete={openDeleteDialog}
+                      onShowMap={setShowMapPreview}
+                      showMapPreview={showMapPreview === zone.id}
+                    />
+                  ))}
                 </div>
               </div>
-            </Card>
-          </div>
-        )}
+            )}
 
-        {/* Tips Card */}
-        <Card className="p-4 bg-muted/50">
-          <h4 className="font-medium flex items-center gap-2 mb-2">
-            <Navigation className="w-4 h-4 text-primary" />
-            نصائح
-          </h4>
-          <ul className="text-sm text-muted-foreground space-y-2">
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
-              <span>اضغط على المنطقة لعرضها على الخريطة</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
-              <span>يمكنك تعديل نصف قطر المنطقة من 50 إلى 500 متر</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
-              <span>المناطق الخضراء للمناطق الآمنة، الصفراء للتنبيه</span>
-            </li>
-          </ul>
-        </Card>
+            {/* Caution Zones */}
+            {!loading && !error && cautionZones.length > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <h2 className="font-semibold">مناطق تنبيه</h2>
+                  <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    {cautionZones.length}
+                  </Badge>
+                </div>
+                <div className="space-y-3">
+                  {cautionZones.map((zone) => (
+                    <ZoneCard
+                      key={zone.id}
+                      zone={zone}
+                      onEdit={openEditDialog}
+                      onDelete={openDeleteDialog}
+                      onShowMap={setShowMapPreview}
+                      showMapPreview={showMapPreview === zone.id}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && !error && zones.length === 0 && (
+              <div className="text-center py-12">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-10 h-10 text-primary" />
+                </div>
+                <h3 className="font-medium text-lg mb-2">لا توجد مناطق آمنة</h3>
+                <p className="text-muted-foreground text-sm mb-4">
+                  أضف مناطق آمنة للحصول على إشعارات عند الدخول والخروج
+                </p>
+                <Button
+                  onClick={() => setShowAddDialog(true)}
+                  variant="outline"
+                  className="rounded-xl"
+                >
+                  <Plus className="w-4 h-4 ml-2" />
+                  إضافة منطقة جديدة
+                </Button>
+              </div>
+            )}
+
+            {/* Stats Cards */}
+            {!loading && !error && zones.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{safeZones.length}</div>
+                      <div className="text-xs text-green-600/70">منطقة آمنة</div>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-600">{cautionZones.length}</div>
+                      <div className="text-xs text-yellow-600/70">منطقة تنبيه</div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
+
+            {/* Tips Card */}
+            {!loading && !error && (
+              <Card className="p-4 bg-muted/50">
+                <h4 className="font-medium flex items-center gap-2 mb-2">
+                  <Navigation className="w-4 h-4 text-primary" />
+                  نصائح
+                </h4>
+                <ul className="text-sm text-muted-foreground space-y-2">
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                    <span>اضغط على المنطقة لعرضها على الخريطة</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                    <span>يمكنك تعديل نصف قطر المنطقة من 50 إلى 500 متر</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                    <span>المناطق الخضراء للمناطق الآمنة، الصفراء للتنبيه</span>
+                  </li>
+                </ul>
+              </Card>
+            )}
+          </>
+        )}
       </div>
 
       {/* Add Zone Dialog */}
@@ -502,15 +557,15 @@ export default function SafeZonesPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">إشعار عند الدخول</span>
                 <Switch
-                  checked={newZone.enterAlert}
-                  onCheckedChange={(checked) => setNewZone({ ...newZone, enterAlert: checked })}
+                  checked={newZone.notifyOnEnter}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, notifyOnEnter: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">إشعار عند الخروج</span>
                 <Switch
-                  checked={newZone.exitAlert}
-                  onCheckedChange={(checked) => setNewZone({ ...newZone, exitAlert: checked })}
+                  checked={newZone.notifyOnExit}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, notifyOnExit: checked })}
                 />
               </div>
             </div>
@@ -624,15 +679,15 @@ export default function SafeZonesPage() {
               <div className="flex items-center justify-between">
                 <span className="text-sm">إشعار عند الدخول</span>
                 <Switch
-                  checked={newZone.enterAlert}
-                  onCheckedChange={(checked) => setNewZone({ ...newZone, enterAlert: checked })}
+                  checked={newZone.notifyOnEnter}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, notifyOnEnter: checked })}
                 />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm">إشعار عند الخروج</span>
                 <Switch
-                  checked={newZone.exitAlert}
-                  onCheckedChange={(checked) => setNewZone({ ...newZone, exitAlert: checked })}
+                  checked={newZone.notifyOnExit}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, notifyOnExit: checked })}
                 />
               </div>
             </div>
@@ -682,8 +737,8 @@ export default function SafeZonesPage() {
             {showMapPreview && (
               <DynamicMap
                 center={{
-                  lat: zones.find((z) => z.id === showMapPreview)?.lat || 30.0444,
-                  lng: zones.find((z) => z.id === showMapPreview)?.lng || 31.2357,
+                  lat: zones.find((z) => z.id === showMapPreview)?.latitude || 30.0444,
+                  lng: zones.find((z) => z.id === showMapPreview)?.longitude || 31.2357,
                 }}
                 className="h-[280px] w-full"
                 showUserLocation={false}
@@ -701,20 +756,18 @@ export default function SafeZonesPage() {
 // Zone Card Component
 function ZoneCard({
   zone,
-  onToggleNotifications,
   onEdit,
   onDelete,
   onShowMap,
   showMapPreview,
 }: {
   zone: SafeZone;
-  onToggleNotifications: (id: string) => void;
   onEdit: (zone: SafeZone) => void;
   onDelete: (zone: SafeZone) => void;
   onShowMap: (id: string | null) => void;
   showMapPreview: boolean;
 }) {
-  const typeConfig = zoneTypeConfig[zone.type];
+  const typeConfig = zoneTypeConfig[zone.type as ZoneType] || zoneTypeConfig.other;
   const Icon = typeConfig.icon;
 
   return (
@@ -768,23 +821,23 @@ function ZoneCard({
               {zone.radius}م
             </span>
             <span className="flex items-center gap-1">
-              {zone.notifications ? (
+              {zone.notifyOnEnter || zone.notifyOnExit ? (
                 <Bell className="w-3 h-3 text-green-500" />
               ) : (
                 <BellOff className="w-3 h-3 text-muted-foreground" />
               )}
-              {zone.notifications ? "الإشعارات مفعلة" : "الإشعارات معطلة"}
+              {zone.notifyOnEnter || zone.notifyOnExit ? "الإشعارات مفعلة" : "الإشعارات معطلة"}
             </span>
           </div>
 
           {/* Alert badges */}
           <div className="flex items-center gap-2 mt-2">
-            {zone.enterAlert && (
+            {zone.notifyOnEnter && (
               <Badge variant="outline" className="text-xs border-green-300 text-green-600">
                 دخول
               </Badge>
             )}
-            {zone.exitAlert && (
+            {zone.notifyOnExit && (
               <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
                 خروج
               </Badge>
@@ -823,24 +876,12 @@ function ZoneCard({
       {showMapPreview && (
         <div className="mt-3 rounded-xl overflow-hidden border border-border">
           <DynamicMap
-            center={{ lat: zone.lat, lng: zone.lng }}
+            center={{ lat: zone.latitude, lng: zone.longitude }}
             className="h-32 w-full"
             showUserLocation={false}
           />
         </div>
       )}
-
-      {/* Toggle notifications */}
-      <div
-        className="flex items-center justify-between mt-3 pt-3 border-t border-border"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="text-sm text-muted-foreground">الإشعارات</span>
-        <Switch
-          checked={zone.notifications}
-          onCheckedChange={() => onToggleNotifications(zone.id)}
-        />
-      </div>
     </Card>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -36,13 +37,17 @@ import {
   Gauge,
   Clock,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [ghostMode, setGhostMode] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(true);
@@ -52,6 +57,13 @@ export default function SettingsPage() {
   const [batterySaverEnabled, setBatterySaverEnabled] = useState(false);
   const [autoEnableLowBattery, setAutoEnableLowBattery] = useState(true);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   // Calculate estimated savings based on settings
   const calculatedSavings = useMemo(() => {
@@ -77,8 +89,10 @@ export default function SettingsPage() {
     getBattery();
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     toast.success("تم تسجيل الخروج بنجاح");
+    router.push("/login");
   };
 
   const handleThemeChange = (isDark: boolean) => {
@@ -95,34 +109,43 @@ export default function SettingsPage() {
     }
   };
 
-
-
   return (
     <main className="min-h-screen bg-background pb-20">
       <Header />
 
       <div className="pt-16 px-4 space-y-6">
-        {/* User Profile Card */}
-        <Link href="/profile">
-          <Card className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20">
-            <div className="flex items-center gap-4">
-              <Avatar className="w-16 h-16 border-2 border-primary/20">
-                <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
-                  أ
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <h2 className="font-bold text-lg">أحمد محمد</h2>
-                <p className="text-sm text-muted-foreground">ahmed@example.com</p>
-                <Badge className="mt-1 bg-primary/10 text-primary gap-1">
-                  <Lock className="w-3 h-3" />
-                  AES-256 مشفّر
-                </Badge>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-            </div>
-          </Card>
-        </Link>
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
+          </div>
+        )}
+
+        {/* Content - only show when authenticated */}
+        {!authLoading && isAuthenticated && (
+          <>
+            {/* User Profile Card */}
+            <Link href="/profile">
+              <Card className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20">
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-16 h-16 border-2 border-primary/20">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
+                      {user?.name?.[0] || "أ"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <h2 className="font-bold text-lg">{user?.name || "المستخدم"}</h2>
+                    <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
+                    <Badge className="mt-1 bg-primary/10 text-primary gap-1">
+                      <Lock className="w-3 h-3" />
+                      AES-256 مشفّر
+                    </Badge>
+                  </div>
+                  <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+                </div>
+              </Card>
+            </Link>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">
@@ -420,6 +443,8 @@ export default function SettingsPage() {
           <p>طمنّي © 2025</p>
           <p className="mt-1">صُنع بـ ❤️ في مصر</p>
         </div>
+          </>
+        )}
       </div>
 
       <BottomNav />

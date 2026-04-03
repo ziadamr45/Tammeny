@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,62 +20,28 @@ import {
   CheckCircle,
   Bell,
   MessageCircle,
-  MapPin,
-  Clock,
-  Heart,
   Users,
-  PhoneCall,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/use-auth";
 
 interface EmergencyContact {
   id: string;
   name: string;
   phone: string;
-  avatar: string | null;
-  isFavorite: boolean;
-  relation: string;
-  notifyOnEmergency: boolean;
-  notifyOnArrival: boolean;
+  relation: string | null;
+  priority: number;
+  createdAt: string;
 }
-
-const INITIAL_CONTACTS: EmergencyContact[] = [
-  {
-    id: "1",
-    name: "أحمد محمد",
-    phone: "+20 123 456 7890",
-    avatar: null,
-    isFavorite: true,
-    relation: "أخ",
-    notifyOnEmergency: true,
-    notifyOnArrival: true,
-  },
-  {
-    id: "2",
-    name: "سارة أحمد",
-    phone: "+20 987 654 3210",
-    avatar: null,
-    isFavorite: true,
-    relation: "زوجة",
-    notifyOnEmergency: true,
-    notifyOnArrival: true,
-  },
-  {
-    id: "3",
-    name: "محمد علي",
-    phone: "+20 555 123 4567",
-    avatar: null,
-    isFavorite: false,
-    relation: "صديق",
-    notifyOnEmergency: true,
-    notifyOnArrival: false,
-  },
-];
 
 export default function EmergencyContactsPage() {
   const router = useRouter();
-  const [contacts, setContacts] = useState<EmergencyContact[]>(INITIAL_CONTACTS);
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -86,64 +52,132 @@ export default function EmergencyContactsPage() {
     relation: "صديق",
   });
 
-  const handleAddContact = () => {
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Fetch emergency contacts from API
+  const fetchContacts = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const response = await fetch("/api/emergency-contacts");
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts(data.emergencyContacts);
+        setError(null);
+      } else {
+        setError(data.error || "فشل في تحميل جهات الاتصال");
+      }
+    } catch (err) {
+      console.error("Error fetching emergency contacts:", err);
+      setError("فشل في الاتصال بالخادم");
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id]);
+
+  // Fetch contacts when user is available
+  useEffect(() => {
+    if (user?.id) {
+      fetchContacts();
+    }
+  }, [user?.id, fetchContacts]);
+
+  const handleAddContact = async () => {
     if (!newContact.name || !newContact.phone) {
       toast.error("يرجى ملء جميع الحقول");
       return;
     }
-    const contact: EmergencyContact = {
-      id: Date.now().toString(),
-      ...newContact,
-      avatar: null,
-      isFavorite: false,
-      notifyOnEmergency: true,
-      notifyOnArrival: false,
-    };
-    setContacts([...contacts, contact]);
-    setShowAddDialog(false);
-    setNewContact({ name: "", phone: "", relation: "صديق" });
-    toast.success("تمت إضافة جهة الاتصال");
+
+    try {
+      const response = await fetch("/api/emergency-contacts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...newContact,
+          priority: contacts.length + 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts([...contacts, data.emergencyContact]);
+        setShowAddDialog(false);
+        setNewContact({ name: "", phone: "", relation: "صديق" });
+        toast.success("تمت إضافة جهة الاتصال");
+      } else {
+        toast.error(data.error || "فشل في إضافة جهة الاتصال");
+      }
+    } catch (err) {
+      console.error("Error adding contact:", err);
+      toast.error("فشل في إضافة جهة الاتصال");
+    }
   };
 
-  const handleEditContact = () => {
+  const handleEditContact = async () => {
     if (!selectedContact) return;
-    setContacts(contacts.map((c) => (c.id === selectedContact.id ? selectedContact : c)));
-    setShowEditDialog(false);
-    setSelectedContact(null);
-    toast.success("تم تحديث جهة الاتصال");
+
+    try {
+      const response = await fetch(`/api/emergency-contacts/${selectedContact.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: selectedContact.name,
+          phone: selectedContact.phone,
+          relation: selectedContact.relation,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setContacts(contacts.map((c) => (c.id === selectedContact.id ? data.emergencyContact : c)));
+        setShowEditDialog(false);
+        setSelectedContact(null);
+        toast.success("تم تحديث جهة الاتصال");
+      } else {
+        toast.error(data.error || "فشل في تحديث جهة الاتصال");
+      }
+    } catch (err) {
+      console.error("Error editing contact:", err);
+      toast.error("فشل في تحديث جهة الاتصال");
+    }
   };
 
-  const handleDeleteContact = () => {
+  const handleDeleteContact = async () => {
     if (!selectedContact) return;
-    setContacts(contacts.filter((c) => c.id !== selectedContact.id));
-    setShowDeleteDialog(false);
-    setSelectedContact(null);
-    toast.success("تم حذف جهة الاتصال");
-  };
 
-  const handleToggleFavorite = (id: string) => {
-    setContacts(
-      contacts.map((c) => (c.id === id ? { ...c, isFavorite: !c.isFavorite } : c))
-    );
-  };
+    try {
+      const response = await fetch(`/api/emergency-contacts/${selectedContact.id}`, {
+        method: "DELETE",
+      });
 
-  const handleToggleNotify = (id: string, type: "emergency" | "arrival") => {
-    setContacts(
-      contacts.map((c) =>
-        c.id === id
-          ? {
-              ...c,
-              [type === "emergency" ? "notifyOnEmergency" : "notifyOnArrival"]: !(
-                type === "emergency" ? c.notifyOnEmergency : c.notifyOnArrival
-              ),
-            }
-          : c
-      )
-    );
-  };
+      const data = await response.json();
 
-  const favorites = contacts.filter((c) => c.isFavorite);
-  const others = contacts.filter((c) => !c.isFavorite);
+      if (data.success) {
+        setContacts(contacts.filter((c) => c.id !== selectedContact.id));
+        setShowDeleteDialog(false);
+        setSelectedContact(null);
+        toast.success("تم حذف جهة الاتصال");
+      } else {
+        toast.error(data.error || "فشل في حذف جهة الاتصال");
+      }
+    } catch (err) {
+      console.error("Error deleting contact:", err);
+      toast.error("فشل في حذف جهة الاتصال");
+    }
+  };
 
   return (
     <main className="min-h-screen bg-background pb-24">
@@ -167,81 +201,83 @@ export default function EmergencyContactsPage() {
       </header>
 
       <div className="px-4 py-6 space-y-6">
-        {/* SOS Info Card */}
-        <Card className="p-4 card-shadow bg-gradient-to-l from-red-500 to-red-600 text-white border-0">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-              <AlertTriangle className="w-7 h-7" />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-lg">تنبيه الطوارئ SOS</div>
-              <div className="text-white/80 text-sm">
-                سيتم إرسال موقعك لهؤلاء الأشخاص عند الضغط على زر الطوارئ
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="p-4 card-shadow text-center">
-            <div className="text-2xl font-bold text-primary">{contacts.length}</div>
-            <div className="text-xs text-muted-foreground">جهة اتصال</div>
-          </Card>
-          <Card className="p-4 card-shadow text-center">
-            <div className="text-2xl font-bold text-yellow-600">{favorites.length}</div>
-            <div className="text-xs text-muted-foreground">مفضل</div>
-          </Card>
-          <Card className="p-4 card-shadow text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {contacts.filter((c) => c.notifyOnEmergency).length}
-            </div>
-            <div className="text-xs text-muted-foreground">مفعّل للطوارئ</div>
-          </Card>
-        </div>
-
-        {/* Favorites */}
-        {favorites.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-bold flex items-center gap-2">
-              <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
-              المفضلون
-            </h3>
-            <div className="space-y-2">
-              {favorites.map((contact) => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  onToggleFavorite={() => handleToggleFavorite(contact.id)}
-                  onToggleNotify={handleToggleNotify}
-                  onEdit={() => {
-                    setSelectedContact(contact);
-                    setShowEditDialog(true);
-                  }}
-                  onDelete={() => {
-                    setSelectedContact(contact);
-                    setShowDeleteDialog(true);
-                  }}
-                />
-              ))}
-            </div>
+        {/* Auth Loading State */}
+        {authLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
           </div>
         )}
 
-        {/* Other Contacts */}
-        {others.length > 0 && (
+        {/* SOS Info Card */}
+        {!authLoading && isAuthenticated && (
+          <Card className="p-4 card-shadow bg-gradient-to-l from-red-500 to-red-600 text-white border-0">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-lg">تنبيه الطوارئ SOS</div>
+                <div className="text-white/80 text-sm">
+                  سيتم إرسال موقعك لهؤلاء الأشخاص عند الضغط على زر الطوارئ
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Loading State */}
+        {!authLoading && isAuthenticated && loading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري التحميل...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {!authLoading && isAuthenticated && error && !loading && (
+          <Card className="p-6 text-center">
+            <p className="text-destructive mb-4">{error}</p>
+            <Button onClick={fetchContacts} variant="outline">
+              إعادة المحاولة
+            </Button>
+          </Card>
+        )}
+
+        {/* Stats */}
+        {!authLoading && isAuthenticated && !loading && !error && (
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="p-4 card-shadow text-center">
+              <div className="text-2xl font-bold text-primary">{contacts.length}</div>
+              <div className="text-xs text-muted-foreground">جهة اتصال</div>
+            </Card>
+            <Card className="p-4 card-shadow text-center">
+              <div className="text-2xl font-bold text-yellow-600">
+                {contacts.filter((c) => c.priority === 1).length}
+              </div>
+              <div className="text-xs text-muted-foreground">أولوية عالية</div>
+            </Card>
+            <Card className="p-4 card-shadow text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {contacts.filter((c) => c.priority <= 3).length}
+              </div>
+              <div className="text-xs text-muted-foreground">مفعّل للطوارئ</div>
+            </Card>
+          </div>
+        )}
+
+        {/* Contacts List */}
+        {!authLoading && isAuthenticated && !loading && !error && contacts.length > 0 && (
           <div className="space-y-3">
             <h3 className="font-bold flex items-center gap-2">
               <Users className="w-5 h-5 text-muted-foreground" />
-              جهات اتصال أخرى
+              جهات الطوارئ ({contacts.length})
             </h3>
             <div className="space-y-2">
-              {others.map((contact) => (
+              {contacts.map((contact) => (
                 <ContactCard
                   key={contact.id}
                   contact={contact}
-                  onToggleFavorite={() => handleToggleFavorite(contact.id)}
-                  onToggleNotify={handleToggleNotify}
                   onEdit={() => {
                     setSelectedContact(contact);
                     setShowEditDialog(true);
@@ -257,7 +293,7 @@ export default function EmergencyContactsPage() {
         )}
 
         {/* Empty State */}
-        {contacts.length === 0 && (
+        {!authLoading && isAuthenticated && !loading && !error && contacts.length === 0 && (
           <Card className="p-8 text-center card-shadow">
             <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
               <Users className="w-8 h-8 text-muted-foreground" />
@@ -277,38 +313,40 @@ export default function EmergencyContactsPage() {
         )}
 
         {/* Quick Actions */}
-        <Card className="p-4 card-shadow">
-          <h3 className="font-bold mb-4">إجراءات سريعة</h3>
-          <div className="space-y-3">
-            <button
-              onClick={() => toast.info("سيتم إرسال تنبيه تجريبي")}
-              className="w-full flex items-center gap-3 p-3 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                <Bell className="w-5 h-5 text-red-600" />
-              </div>
-              <div className="flex-1 text-right">
-                <div className="font-medium text-red-700">إرسال تنبيه تجريبي</div>
-                <div className="text-xs text-red-600">اختر نظام الإشعارات</div>
-              </div>
-              <ArrowRight className="w-5 h-5 text-red-400" />
-            </button>
+        {!authLoading && isAuthenticated && !loading && !error && (
+          <Card className="p-4 card-shadow">
+            <h3 className="font-bold mb-4">إجراءات سريعة</h3>
+            <div className="space-y-3">
+              <button
+                onClick={() => toast.info("سيتم إرسال تنبيه تجريبي")}
+                className="w-full flex items-center gap-3 p-3 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-red-600" />
+                </div>
+                <div className="flex-1 text-right">
+                  <div className="font-medium text-red-700">إرسال تنبيه تجريبي</div>
+                  <div className="text-xs text-red-600">اختر نظام الإشعارات</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-red-400" />
+              </button>
 
-            <button
-              onClick={() => toast.success("تم استيراد جهات الاتصال")}
-              className="w-full flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                <Users className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="flex-1 text-right">
-                <div className="font-medium text-blue-700">استيراد من جهات الاتصال</div>
-                <div className="text-xs text-blue-600">إضافة من دفتر العناوين</div>
-              </div>
-              <ArrowRight className="w-5 h-5 text-blue-400" />
-            </button>
-          </div>
-        </Card>
+              <button
+                onClick={() => toast.success("تم استيراد جهات الاتصال")}
+                className="w-full flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1 text-right">
+                  <div className="font-medium text-blue-700">استيراد من جهات الاتصال</div>
+                  <div className="text-xs text-blue-600">إضافة من دفتر العناوين</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-blue-400" />
+              </button>
+            </div>
+          </Card>
+        )}
       </div>
 
       {/* Add Contact Dialog */}
@@ -482,14 +520,10 @@ export default function EmergencyContactsPage() {
 
 function ContactCard({
   contact,
-  onToggleFavorite,
-  onToggleNotify,
   onEdit,
   onDelete,
 }: {
   contact: EmergencyContact;
-  onToggleFavorite: () => void;
-  onToggleNotify: (id: string, type: "emergency" | "arrival") => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -504,58 +538,34 @@ function ContactCard({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="font-bold">{contact.name}</span>
-            <Badge variant="secondary" className="text-xs">
-              {contact.relation}
-            </Badge>
+            {contact.relation && (
+              <Badge variant="secondary" className="text-xs">
+                {contact.relation}
+              </Badge>
+            )}
           </div>
           <div className="text-sm text-muted-foreground mt-0.5" dir="ltr">
             {contact.phone}
           </div>
 
-          {/* Notification toggles */}
+          {/* Priority badge */}
           <div className="flex items-center gap-4 mt-3">
-            <button
-              onClick={() => onToggleNotify(contact.id, "emergency")}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all",
-                contact.notifyOnEmergency
-                  ? "bg-red-100 text-red-700"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              <AlertTriangle className="w-3 h-3" />
-              طوارئ
-            </button>
-            <button
-              onClick={() => onToggleNotify(contact.id, "arrival")}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all",
-                contact.notifyOnArrival
-                  ? "bg-green-100 text-green-700"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              <CheckCircle className="w-3 h-3" />
-              وصول
-            </button>
+            <div className={cn(
+              "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all",
+              contact.priority === 1
+                ? "bg-red-100 text-red-700"
+                : contact.priority <= 3
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-muted text-muted-foreground"
+            )}>
+              <Shield className="w-3 h-3" />
+              أولوية {contact.priority}
+            </div>
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex flex-col gap-1">
-          <button
-            onClick={onToggleFavorite}
-            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
-          >
-            <Star
-              className={cn(
-                "w-5 h-5 transition-colors",
-                contact.isFavorite
-                  ? "text-yellow-500 fill-yellow-500"
-                  : "text-muted-foreground"
-              )}
-            />
-          </button>
           <button
             onClick={onEdit}
             className="p-1.5 rounded-lg hover:bg-muted transition-colors"
