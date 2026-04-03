@@ -406,7 +406,7 @@ ${window.location.origin}/share/demo123
         <Card className="p-4 card-shadow">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-lg">آخر الأنشطة</h3>
-            <span className="text-sm text-primary cursor-pointer hover:underline">عرض الكل</span>
+            <Link href="/history" className="text-sm text-primary hover:underline">عرض الكل</Link>
           </div>
           <div className="space-y-3">
             <ActivityItem
@@ -434,15 +434,17 @@ ${window.location.origin}/share/demo123
         </Card>
 
         {/* Stats Card */}
-        <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10">
-          <div className="flex items-center justify-around">
-            <StatItem value="٢٤" label="رحلة" />
-            <div className="w-px h-10 bg-border" />
-            <StatItem value="١٥٦" label="كم" />
-            <div className="w-px h-10 bg-border" />
-            <StatItem value="٨" label="جهة اتصال" />
-          </div>
-        </Card>
+        <Link href="/history">
+          <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10 hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5">
+            <div className="flex items-center justify-around">
+              <StatItem value="٢٤" label="رحلة" />
+              <div className="w-px h-10 bg-border" />
+              <StatItem value="١٥٦" label="كم" />
+              <div className="w-px h-10 bg-border" />
+              <StatItem value="٨" label="جهة اتصال" />
+            </div>
+          </Card>
+        </Link>
       </div>
 
       <BottomNav />
