@@ -85,13 +85,7 @@ export default function HomePage() {
   const [pullDistance, setPullDistance] = useState(0);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
-  const [isOnline, setIsOnline] = useState(() => {
-    // Initialize with current online status
-    if (typeof navigator !== 'undefined') {
-      return navigator.onLine;
-    }
-    return true;
-  });
+  const [isOnline, setIsOnline] = useState(true); // Default to true for SSR consistency
   const mapRef = useRef<HTMLDivElement>(null);
   const touchStartRef = useRef<number | null>(null);
 
@@ -113,6 +107,10 @@ export default function HomePage() {
 
   // Check online status
   useEffect(() => {
+    // Set initial online status after hydration (deferred to avoid cascading renders)
+    const initialOnline = navigator.onLine;
+    setTimeout(() => setIsOnline(initialOnline), 0);
+    
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);

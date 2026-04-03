@@ -516,9 +516,11 @@ export default function AchievementsPage() {
   useEffect(() => {
     const hasSeenAchievements = localStorage.getItem("hasSeenAchievements");
     if (!hasSeenAchievements && achievements.some((a) => a.unlocked)) {
-      setShowConfetti(true);
-      localStorage.setItem("hasSeenAchievements", "true");
-      setTimeout(() => setShowConfetti(false), 3000);
+      setTimeout(() => {
+        setShowConfetti(true);
+        localStorage.setItem("hasSeenAchievements", "true");
+        setTimeout(() => setShowConfetti(false), 3000);
+      }, 0);
     }
   }, [achievements]);
 
