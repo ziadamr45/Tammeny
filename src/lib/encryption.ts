@@ -1,16 +1,66 @@
 import CryptoJS from 'crypto-js';
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'tamenny-default-key-32-char';
+// Use environment variable with fallback - 32 bytes for AES-256
+const getEncryptionKey = (): string => {
+  const key = process.env.ENCRYPTION_KEY;
+  if (!key) {
+    // In production, this should always come from environment
+    console.warn('WARNING: Using default encryption key. Set ENCRYPTION_KEY environment variable!');
+    return 'tamenny-secure-key-32-chars!!';
+  }
+  return key;
+};
 
-// Encrypt data
+// Encrypt data using AES-256
 export function encrypt(data: string): string {
-  return CryptoJS.AES.encrypt(data, ENCRYPTION_KEY).toString();
+  const key = getEncryptionKey();
+  const encrypted = CryptoJS.AES.encrypt(data, key);
+  return encrypted.toString();
 }
 
 // Decrypt data
 export function decrypt(encryptedData: string): string {
-  const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-  return bytes.toString(CryptoJS.enc.Utf8);
+  try {
+    const key = getEncryptionKey();
+    const bytes = CryptoJS.AES.decrypt(encryptedData, key);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  } catch {
+    throw new Error('Failed to decrypt data');
+  }
+}
+
+// Encrypt location data as JSON
+export function encryptLocation(location: {
+  lat: number;
+  lng: number;
+  name?: string;
+  accuracy?: number;
+  timestamp?: number;
+}): string {
+  const data = JSON.stringify({
+    lat: location.lat,
+    lng: location.lng,
+    name: location.name || 'موقعك الحالي',
+    accuracy: location.accuracy,
+    timestamp: location.timestamp || Date.now(),
+  });
+  return encrypt(data);
+}
+
+// Decrypt location data
+export function decryptLocation(encryptedData: string): {
+  lat: number;
+  lng: number;
+  name: string;
+  accuracy?: number;
+  timestamp: number;
+} | null {
+  try {
+    const decrypted = decrypt(encryptedData);
+    return JSON.parse(decrypted);
+  } catch {
+    return null;
+  }
 }
 
 // Generate encrypted session ID
@@ -36,12 +86,13 @@ export function generateAccessToken(): string {
   return CryptoJS.lib.WordArray.random(32).toString();
 }
 
-// Hash password
-export function hashPassword(password: string): string {
-  return CryptoJS.SHA256(password + ENCRYPTION_KEY).toString();
+// Hash password (for non-auth purposes, use bcrypt for user passwords)
+export function hashData(data: string): string {
+  const key = getEncryptionKey();
+  return CryptoJS.SHA256(data + key).toString();
 }
 
-// Verify password
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+// Verify hash
+export function verifyHash(data: string, hash: string): boolean {
+  return hashData(data) === hash;
 }

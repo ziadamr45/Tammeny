@@ -21,6 +21,11 @@ model User {
   avatar        String?
   deviceToken   String?   // For push notifications
   isVerified    Boolean   @default(false)
+  
+  // Last known location (encrypted for security)
+  lastLocationData    String?   // Encrypted JSON: { lat, lng, name, timestamp, accuracy }
+  lastLocationUpdated DateTime? // When the location was last updated
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
