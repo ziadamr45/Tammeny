@@ -42,23 +42,23 @@ interface MapComponentProps {
   onRouteComplete?: () => void;
 }
 
-// Egypt bounds (restrict map to Egypt)
-const EGYPT_BOUNDS = {
-  north: 31.9,
-  south: 22.0,
-  east: 37.0,
-  west: 24.7,
+// Default location (0,0 - will be updated with user's actual location)
+const DEFAULT_LOCATION: Location = {
+  lat: 0,
+  lng: 0,
+  name: "موقعك الحالي",
 };
 
-// Cairo default location (fallback if GPS fails)
-const CAIRO_LOCATION: Location = {
-  lat: 30.0444,
-  lng: 31.2357,
-  name: "القاهرة، مصر",
+// World bounds (no restriction)
+const WORLD_BOUNDS = {
+  north: 90,
+  south: -90,
+  east: 180,
+  west: -180,
 };
 
 export function MapComponent({
-  center = CAIRO_LOCATION,
+  center = DEFAULT_LOCATION,
   destination,
   waypoints = [],
   showRoute = false,
@@ -119,12 +119,8 @@ export function MapComponent({
         zoom: 15,
         zoomControl: false,
         attributionControl: false,
-        maxBounds: [
-          [EGYPT_BOUNDS.south, EGYPT_BOUNDS.west],
-          [EGYPT_BOUNDS.north, EGYPT_BOUNDS.east],
-        ],
-        maxBoundsViscosity: 1.0,
-        minZoom: 6,
+        // No bounds restriction - works anywhere in the world
+        minZoom: 2,
       });
 
       // Add OpenStreetMap tiles with Arabic-friendly styling
@@ -479,7 +475,7 @@ export function MapComponent({
     };
   }, [mapInstance, interactive, onLocationSelect]);
 
-  // Get current location on mount
+  // Get current location on mount - works anywhere in the world
   useEffect(() => {
     if (!showUserLocation) return;
 
@@ -488,43 +484,38 @@ export function MapComponent({
         navigator.geolocation.getCurrentPosition(
           (position) => {
             const { latitude, longitude } = position.coords;
-            
-            // Check if location is within Egypt bounds
-            const isInEgypt = 
-              latitude >= EGYPT_BOUNDS.south &&
-              latitude <= EGYPT_BOUNDS.north &&
-              longitude >= EGYPT_BOUNDS.west &&
-              longitude <= EGYPT_BOUNDS.east;
-            
-            if (isInEgypt) {
-              setCurrentLocation({
-                lat: latitude,
-                lng: longitude,
-                name: "موقعك الحالي",
-              });
-            } else {
-              // If outside Egypt, use default Cairo location
-              console.log("Location outside Egypt, using default");
-              setCurrentLocation(CAIRO_LOCATION);
-            }
+            // Use actual user location anywhere in the world
+            setCurrentLocation({
+              lat: latitude,
+              lng: longitude,
+              name: "موقعك الحالي",
+            });
           },
           (error) => {
             console.log("Geolocation error:", error.message);
-            setCurrentLocation(CAIRO_LOCATION);
+            // If GPS fails, keep trying to get location
+            // Map will show default view until location is obtained
           },
           { 
             enableHighAccuracy: true,
-            timeout: 10000,
+            timeout: 15000,
             maximumAge: 0
           }
         );
-      } else {
-        setCurrentLocation(CAIRO_LOCATION);
       }
     };
 
     getLocation();
-  }, [showUserLocation]);
+    
+    // Keep trying to get location every 30 seconds if not available
+    const interval = setInterval(() => {
+      if (!currentLocation) {
+        getLocation();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [showUserLocation, currentLocation]);
 
   if (!leafletLoaded) {
     return (

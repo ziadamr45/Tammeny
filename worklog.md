@@ -1172,3 +1172,35 @@ The map box was not properly positioned and would ruin the app layout.
 - Password strength indicator improves UX
 - All tests pass with agent-browser
 - ESLint passes with no errors
+
+---
+## Task ID: map-global-fix
+### Work Task
+Remove Egypt-only restriction from map component and make it work globally based on user's actual location.
+
+### Work Log:
+1. Modified Map Component (`/src/components/tamenny/map-component.tsx`):
+   - Removed `EGYPT_BOUNDS` constant that restricted map to Egypt only
+   - Removed `CAIRO_LOCATION` hardcoded default location
+   - Added `DEFAULT_LOCATION` (0,0) that gets updated with user's actual GPS location
+   - Added `WORLD_BOUNDS` constant for documentation purposes
+   - Removed `maxBounds` and `maxBoundsViscosity` restrictions from map initialization
+   - Changed `minZoom` from 6 to 2 to allow global zoom levels
+   - Updated location retrieval logic to accept user's actual location anywhere in the world
+   - Removed Egypt boundary check in `getCurrentPosition` callback
+   - Added retry mechanism with 30-second interval if GPS fails initially
+
+### Technical Changes:
+- `EGYPT_BOUNDS` → Removed (was limiting map to Egypt coordinates)
+- `CAIRO_LOCATION` → `DEFAULT_LOCATION` (dynamic based on user)
+- `maxBounds: [[22.0, 24.7], [31.9, 37.0]]` → Removed (no restrictions)
+- `maxBoundsViscosity: 1.0` → Removed
+- `minZoom: 6` → `minZoom: 2` (allows seeing entire world)
+- Egypt location check → Removed (now accepts any global location)
+
+### Stage Summary:
+- Map now works globally with user's actual GPS location
+- No more Egypt-only restriction
+- Better error handling with retry mechanism
+- ESLint passes with no errors
+- All text remains in Arabic with RTL layout
