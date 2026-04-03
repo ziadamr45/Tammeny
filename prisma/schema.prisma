@@ -1,0 +1,168 @@
+// This is your Prisma schema file for Tamenny (طمنّي)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:/home/z/my-project/db/tamenny.db"
+}
+
+// User model for authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  gender        String?   // "male" | "female"
+  phone         String?
+  avatar        String?
+  deviceToken   String?   // For push notifications
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  sessions      Session[]
+  sentMessages  Message[] @relation("SenderMessages")
+  receivedMessages Message[] @relation("ReceiverMessages")
+  contacts      Contact[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// Session model for location sharing
+model Session {
+  id              String    @id @default(cuid())
+  encryptedId     String    @unique  // Encrypted session ID for URL
+  creatorId       String
+  
+  // Session settings
+  duration        Int       // Duration in minutes (5, 60, -1 for until arrival)
+  sessionType     String    // "minutes" | "until_arrival" | "manual"
+  
+  // Location data
+  startLat        Float
+  startLng        Float
+  currentLat      Float?
+  currentLng      Float?
+  
+  // Destination (optional)
+  destLat         Float?
+  destLng         Float?
+  destName        String?
+  
+  // Status
+  status          String    @default("active") // "active" | "completed" | "expired" | "cancelled"
+  isGhostMode     Boolean   @default(false)
+  isRestricted    Boolean   @default(false)  // If true, only specific users can view
+  
+  // Timestamps
+  startedAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  completedAt     DateTime?
+  lastUpdatedAt   DateTime  @default(now())
+  
+  // Stats
+  totalDistance   Float     @default(0)
+  totalDuration   Int       @default(0)  // In seconds
+  
+  // Relations
+  creator         User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  allowedUsers    AllowedUser[]
+  locations       LocationPoint[]
+  messages        Message[]
+  
+  @@index([creatorId])
+  @@index([encryptedId])
+  @@map("sessions")
+}
+
+// Allowed users for restricted sessions
+model AllowedUser {
+  id          String    @id @default(cuid())
+  sessionId   String
+  userId      String?
+  email       String?   // Can invite by email
+  token       String    @unique  // Unique token for this user
+  hasViewed   Boolean   @default(false)
+  viewedAt    DateTime?
+  
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@map("allowed_users")
+}
+
+// Location points for tracking history
+model LocationPoint {
+  id          String    @id @default(cuid())
+  sessionId   String
+  lat         Float
+  lng         Float
+  speed       Float?    // km/h
+  accuracy    Float?    // meters
+  timestamp   DateTime  @default(now())
+  
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId])
+  @@map("location_points")
+}
+
+// Messages for chat
+model Message {
+  id          String    @id @default(cuid())
+  sessionId   String
+  senderId    String
+  receiverId  String?
+  content     String
+  type        String    @default("text") // "text" | "voice" | "system"
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  
+  session     Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender      User      @relation("SenderMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User?     @relation("ReceiverMessages", fields: [receiverId], references: [id], onDelete: SetNull)
+  
+  @@index([sessionId])
+  @@index([senderId])
+  @@map("messages")
+}
+
+// Contacts for quick sharing
+model Contact {
+  id          String    @id @default(cuid())
+  userId      String
+  contactUserId String? // If contact is also a user
+  name        String
+  phone       String?
+  email       String?
+  isFavorite  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("contacts")
+}
+
+// Notifications
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String
+  type        String    // "arrived" | "nearby" | "session_expired" | "new_viewer"
+  title       String
+  message     String
+  data        String?   // JSON data
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("notifications")
+}

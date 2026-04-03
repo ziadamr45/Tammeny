@@ -1,0 +1,47 @@
+{
+  "name": "طمنّي - Tamenny",
+  "short_name": "طمنّي",
+  "description": "تتبع الموقع في الوقت الحقيقي بأمان وخصوصية تامة",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8F9FA",
+  "theme_color": "#0D7377",
+  "dir": "rtl",
+  "lang": "ar",
+  "categories": ["navigation", "lifestyle", "social"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot1.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "الشاشة الرئيسية"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "شارك موقعي",
+      "short_name": "مشاركة",
+      "description": "ابدأ مشاركة موقعك الآن",
+      "url": "/?action=share",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

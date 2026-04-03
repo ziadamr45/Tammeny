@@ -1,0 +1,203 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-teal: var(--teal);
+  --color-teal-light: var(--teal-light);
+  --color-teal-dark: var(--teal-dark);
+}
+
+:root {
+  --radius: 0.75rem;
+  /* Teal theme - طمنّي */
+  --teal: #0D7377;
+  --teal-light: #14A3A8;
+  --teal-dark: #0A5C5F;
+  
+  --background: #F8F9FA;
+  --foreground: #1A1A2E;
+  --card: #FFFFFF;
+  --card-foreground: #1A1A2E;
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A2E;
+  --primary: #0D7377;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E9ECEF;
+  --secondary-foreground: #1A1A2E;
+  --muted: #F1F3F5;
+  --muted-foreground: #6C757D;
+  --accent: #E9ECEF;
+  --accent-foreground: #1A1A2E;
+  --destructive: #DC3545;
+  --border: #DEE2E6;
+  --input: #E9ECEF;
+  --ring: #0D7377;
+  --chart-1: #0D7377;
+  --chart-2: #14A3A8;
+  --chart-3: #0A5C5F;
+  --chart-4: #FF6B6B;
+  --chart-5: #4ECDC4;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1A1A2E;
+  --sidebar-primary: #0D7377;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E9ECEF;
+  --sidebar-accent-foreground: #1A1A2E;
+  --sidebar-border: #DEE2E6;
+  --sidebar-ring: #0D7377;
+}
+
+.dark {
+  --teal: #14A3A8;
+  --teal-light: #1BC1C6;
+  --teal-dark: #0D7377;
+  
+  --background: #0F1419;
+  --foreground: #E9ECEF;
+  --card: #1A1F2E;
+  --card-foreground: #E9ECEF;
+  --popover: #1A1F2E;
+  --popover-foreground: #E9ECEF;
+  --primary: #14A3A8;
+  --primary-foreground: #0F1419;
+  --secondary: #2D3748;
+  --secondary-foreground: #E9ECEF;
+  --muted: #1A1F2E;
+  --muted-foreground: #9CA3AF;
+  --accent: #2D3748;
+  --accent-foreground: #E9ECEF;
+  --destructive: #EF4444;
+  --border: #2D3748;
+  --input: #2D3748;
+  --ring: #14A3A8;
+  --chart-1: #14A3A8;
+  --chart-2: #1BC1C6;
+  --chart-3: #0D7377;
+  --chart-4: #FF6B6B;
+  --chart-5: #4ECDC4;
+  --sidebar: #1A1F2E;
+  --sidebar-foreground: #E9ECEF;
+  --sidebar-primary: #14A3A8;
+  --sidebar-primary-foreground: #0F1419;
+  --sidebar-accent: #2D3748;
+  --sidebar-accent-foreground: #E9ECEF;
+  --sidebar-border: #2D3748;
+  --sidebar-ring: #14A3A8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  }
+  html {
+    direction: rtl;
+  }
+  html[dir="ltr"] {
+    direction: ltr;
+  }
+}
+
+/* Custom scrollbar for RTL */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--teal-dark);
+}
+
+/* Mobile-first responsive */
+@layer utilities {
+  .mobile-container {
+    @apply w-full max-w-md mx-auto px-4 py-4;
+  }
+  
+  .card-shadow {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-teal-dark transition-colors duration-200;
+  }
+  
+  .input-field {
+    @apply bg-secondary border-0 rounded-xl px-4 py-3 text-right placeholder:text-muted-foreground focus:ring-2 focus:ring-primary;
+  }
+}
+
+/* Animation for location updates */
+@keyframes pulse-location {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-location {
+  animation: pulse-location 2s ease-in-out infinite;
+}
+
+/* Safe area for iOS */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
