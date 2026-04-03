@@ -528,9 +528,9 @@ export function MapComponent({
   }
 
   return (
-    <div className={cn("relative overflow-hidden rounded-xl", className)}>
-      {/* Map container */}
-      <div ref={mapRef} className="w-full h-full min-h-[200px]" />
+    <div className={cn("relative overflow-hidden rounded-xl isolate", className)}>
+      {/* Map container with constrained z-index */}
+      <div ref={mapRef} className="w-full h-full min-h-[200px] [&_.leaflet-pane]:z-[1] [&_.leaflet-control]:z-[10] [&_.leaflet-popup]:z-[20]" />
       
       {/* Custom controls overlay */}
       <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">

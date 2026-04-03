@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
@@ -27,22 +28,35 @@ import {
 // Status types
 type AppStatus = "idle" | "tracking" | "sharing";
 
-// Default Cairo location (fallback if GPS fails)
-const CAIRO_LOCATION = {
-  lat: 30.0444,
-  lng: 31.2357,
-  name: "القاهرة، مصر",
-};
-
-// Egypt bounds
-const EGYPT_BOUNDS = {
-  north: 31.9,
-  south: 22.0,
-  east: 37.0,
-  west: 24.7,
+// Default location (will be updated with user's actual GPS)
+const DEFAULT_LOCATION = {
+  lat: 0,
+  lng: 0,
+  name: "موقعك الحالي",
 };
 
 export default function HomePage() {
+  // Auth protection
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        const data = await response.json();
+        if (!data.success || !data.user) {
+          router.replace('/login');
+        } else {
+          setAuthChecked(true);
+        }
+      } catch {
+        router.replace('/login');
+      }
+    };
+    checkAuth();
+  }, [router]);
+  
   const [status, setStatus] = useState<AppStatus>("idle");
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -69,13 +83,15 @@ export default function HomePage() {
 
   // Calculate route info when destination is set
   const routeInfo = destination ? {
-    distance: calculateDistance(location || CAIRO_LOCATION, destination),
-    duration: calculateETA(calculateDistance(location || CAIRO_LOCATION, destination), 30),
+    distance: calculateDistance(location || DEFAULT_LOCATION, destination),
+    duration: calculateETA(calculateDistance(location || DEFAULT_LOCATION, destination), 30),
     progress: routeProgress,
   } : null;
 
-  // Get current location on mount
+  // Get current location on mount - works anywhere in the world
   useEffect(() => {
+    if (!authChecked) return;
+    
     let mounted = true;
     
     const fetchLocation = () => {
@@ -84,38 +100,23 @@ export default function HomePage() {
           (position) => {
             if (mounted) {
               const { latitude, longitude } = position.coords;
-              
-              // Check if location is within Egypt bounds
-              const isInEgypt = 
-                latitude >= EGYPT_BOUNDS.south &&
-                latitude <= EGYPT_BOUNDS.north &&
-                longitude >= EGYPT_BOUNDS.west &&
-                longitude <= EGYPT_BOUNDS.east;
-              
-              if (isInEgypt) {
-                setLocation({
-                  lat: latitude,
-                  lng: longitude,
-                  name: "موقعك الحالي",
-                });
-              } else {
-                // If outside Egypt, use default Cairo location
-                setLocation(CAIRO_LOCATION);
-              }
+              // Use actual user location anywhere in the world
+              setLocation({
+                lat: latitude,
+                lng: longitude,
+                name: "موقعك الحالي",
+              });
             }
           },
           () => {
-            // Use default location if geolocation fails
+            // Keep trying to get location
             if (mounted) {
-              setLocation(CAIRO_LOCATION);
+              // Don't set a default location, keep trying
+              console.log("Could not get location, will retry...");
             }
           },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
-      } else {
-        if (mounted) {
-          setLocation(CAIRO_LOCATION);
-        }
       }
     };
     
@@ -124,7 +125,7 @@ export default function HomePage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authChecked]);
 
   // Watch position when tracking
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function HomePage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [status]);
 
-  // Watch position when sharing - use real location updates
+  // Watch position when sharing - use real location updates anywhere in world
   useEffect(() => {
     if (status !== "sharing") return;
 
@@ -154,33 +155,25 @@ export default function HomePage() {
       (position) => {
         const { latitude, longitude, speed } = position.coords;
         
-        // Check if location is within Egypt bounds
-        const isInEgypt = 
-          latitude >= EGYPT_BOUNDS.south &&
-          latitude <= EGYPT_BOUNDS.north &&
-          longitude >= EGYPT_BOUNDS.west &&
-          longitude <= EGYPT_BOUNDS.east;
+        // Use actual user location anywhere in the world
+        setLocation({
+          lat: latitude,
+          lng: longitude,
+          name: "موقعك الحالي",
+        });
+        setSpeed(speed ? speed * 3.6 : 0);
         
-        if (isInEgypt) {
-          setLocation({
-            lat: latitude,
-            lng: longitude,
-            name: "موقعك الحالي",
-          });
-          setSpeed(speed ? speed * 3.6 : 0);
+        // Update distance if destination is set
+        if (destination) {
+          const dist = calculateDistance({ lat: latitude, lng: longitude }, destination);
+          setDistance(dist);
+          setEta(calculateETA(dist, 30));
           
-          // Update distance if destination is set
-          if (destination) {
-            const dist = calculateDistance({ lat: latitude, lng: longitude }, destination);
-            setDistance(dist);
-            setEta(calculateETA(dist, 30));
-            
-            // Calculate route progress
-            if (location) {
-              const totalDist = calculateDistance(location, destination);
-              const progress = Math.round((1 - dist / totalDist) * 100);
-              setRouteProgress(Math.max(0, Math.min(100, progress)));
-            }
+          // Calculate route progress
+          if (location) {
+            const totalDist = calculateDistance(location, destination);
+            const progress = Math.round((1 - dist / totalDist) * 100);
+            setRouteProgress(Math.max(0, Math.min(100, progress)));
           }
         }
       },
@@ -277,7 +270,7 @@ export default function HomePage() {
     if (destination) {
       setShowRoute(true);
       setAnimateMarker(true);
-      const dist = calculateDistance(location || CAIRO_LOCATION, destination);
+      const dist = calculateDistance(location || DEFAULT_LOCATION, destination);
       setDistance(dist);
       setEta(calculateETA(dist, 30));
     }
@@ -384,6 +377,16 @@ ${window.location.origin}/share/demo123
 
   return (
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
+      {/* Auth Loading */}
+      {!authChecked && (
+        <div className="fixed inset-0 bg-background flex items-center justify-center z-[100]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-muted-foreground">جاري التحقق...</p>
+          </div>
+        </div>
+      )}
+      
       {/* Animated Background Gradient */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse" style={{ transform: "translate(-30%, -30%)" }} />

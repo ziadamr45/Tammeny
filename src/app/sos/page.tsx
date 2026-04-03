@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,8 @@ interface EmergencyContact {
 }
 
 export default function SOSPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus] = useState<SOSStatus>("inactive");
   const [countdown, setCountdown] = useState(5);
   const [location, setLocation] = useState<typeof MOCK_LOCATION | null>(null);
@@ -74,6 +77,24 @@ export default function SOSPage() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const audioContextRef = useRef<AudioContext | null>(null);
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auth check
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        const data = await response.json();
+        if (!data.success || !data.user) {
+          router.replace('/login');
+        } else {
+          setAuthChecked(true);
+        }
+      } catch {
+        router.replace('/login');
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   // Get current location on mount
   useEffect(() => {
@@ -296,6 +317,16 @@ export default function SOSPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-red-50 to-background pb-20">
+      {/* Auth Loading */}
+      {!authChecked && (
+        <div className="fixed inset-0 bg-background flex items-center justify-center z-[100]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-muted-foreground">جاري التحقق...</p>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
         <div className="p-4 flex items-center justify-between">

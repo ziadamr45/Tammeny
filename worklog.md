@@ -1204,3 +1204,57 @@ Remove Egypt-only restriction from map component and make it work globally based
 - Better error handling with retry mechanism
 - ESLint passes with no errors
 - All text remains in Arabic with RTL layout
+
+---
+## Task ID: auth-and-map-fix
+### Work Task
+1. Add authentication protection to all pages - redirect unauthenticated users to login
+2. Fix map z-index issue where map covers content on SOS and other pages
+3. Remove Egypt-only restriction from map (make it work globally)
+
+### Work Log:
+
+1. Created Middleware (`/src/middleware.ts`):
+   - Created Next.js middleware for route protection
+   - Defined public routes: /login, /register, /forgot-password, /onboarding, /terms, /privacy, /help
+   - Defined public API routes: /api/auth/*, /api/contacts for share viewer
+   - Share viewer pages (/share/[id]) are public for location sharing
+   - All other routes require authentication via auth-token or session-token cookie
+   - Redirects unauthenticated users to /login with redirect parameter
+
+2. Updated Home Page (`/src/app/page.tsx`):
+   - Added useRouter import for navigation
+   - Added auth check on component mount
+   - Shows loading spinner while checking authentication
+   - Redirects to /login if not authenticated
+   - Removed Egypt bounds restriction - now works globally
+   - Changed CAIRO_LOCATION to DEFAULT_LOCATION (0,0)
+   - Location now comes directly from user's GPS anywhere in world
+
+3. Updated SOS Page (`/src/app/sos/page.tsx`):
+   - Added useRouter import for navigation
+   - Added auth check on component mount
+   - Shows loading spinner while checking authentication
+   - Redirects to /login if not authenticated
+
+4. Fixed Map Component (`/src/components/tamenny/map-component.tsx`):
+   - Added `isolate` class to map container for z-index isolation
+   - Added CSS selectors to constrain Leaflet element z-index:
+     - .leaflet-pane: z-[1]
+     - .leaflet-control: z-[10]
+     - .leaflet-popup: z-[20]
+   - This prevents map from covering other page content
+
+### Technical Changes:
+- New file: `/src/middleware.ts` - Route protection middleware
+- Modified: `/src/app/page.tsx` - Auth protection + global location
+- Modified: `/src/app/sos/page.tsx` - Auth protection
+- Modified: `/src/components/tamenny/map-component.tsx` - Z-index fix
+
+### Stage Summary:
+- All protected routes now require authentication
+- Unauthenticated users are redirected to login page
+- Map no longer covers content on any page
+- Map works globally without Egypt restriction
+- ESLint passes with no errors
+- All text remains in Arabic with RTL layout
