@@ -1258,3 +1258,47 @@ Remove Egypt-only restriction from map component and make it work globally based
 - Map works globally without Egypt restriction
 - ESLint passes with no errors
 - All text remains in Arabic with RTL layout
+
+---
+## Task ID: saved-location-feature
+### Work Task
+Implement saved location feature - show last known location instantly when app opens, then search for fresh location in background.
+
+### Work Log:
+
+1. Created useSavedLocation Hook (`/src/hooks/use-saved-location.ts`):
+   - Saves location to localStorage with timestamp
+   - Loads saved location on app mount
+   - Auto-expires locations older than 24 hours
+   - Provides saveLocation(), clearSavedLocation(), getCurrentLocation() methods
+
+2. Updated Home Page (`/src/app/page.tsx`):
+   - Added useSavedLocation hook integration
+   - Shows saved location INSTANTLY when app opens (no waiting for GPS)
+   - Displays "جاري تحديث الموقع..." indicator while searching for fresh location
+   - Updates to fresh location when GPS finds it
+   - Saves new location to localStorage for next session
+
+### User Experience Flow:
+1. User opens app
+2. App INSTANTLY shows last known location on map (from localStorage)
+3. App shows "جاري تحديث الموقع..." indicator
+4. GPS searches for fresh location in background
+5. If found: updates map and saves new location
+6. If not found: keeps showing saved location
+
+### Technical Implementation:
+- localStorage key: 'tamenny_last_location'
+- Max age: 24 hours (locations older than this are cleared)
+- Location saved includes: lat, lng, name, timestamp, accuracy
+- setTimeout(0) used to avoid synchronous setState in effect
+
+### Files Modified:
+- `/src/hooks/use-saved-location.ts` - NEW FILE
+- `/src/app/page.tsx` - Added hook integration and location indicator
+
+### Stage Summary:
+- Users now see their last location instantly when opening the app
+- No more waiting for GPS to show initial map
+- Fresh location is fetched in background
+- ESLint passes with no errors

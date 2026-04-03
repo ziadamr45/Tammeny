@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useSavedLocation } from "@/hooks/use-saved-location";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
@@ -40,6 +41,9 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   
+  // Saved location - loads last known location instantly
+  const { savedLocation, saveLocation } = useSavedLocation();
+  
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -59,6 +63,7 @@ export default function HomePage() {
   
   const [status, setStatus] = useState<AppStatus>("idle");
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
+  const [isLocating, setIsLocating] = useState(false); // True while searching for new location
   const [showShareModal, setShowShareModal] = useState(false);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showDestinationModal, setShowDestinationModal] = useState(false);
@@ -89,43 +94,65 @@ export default function HomePage() {
   } : null;
 
   // Get current location on mount - works anywhere in the world
+  // First: Load saved location instantly, then search for new location in background
   useEffect(() => {
     if (!authChecked) return;
     
     let mounted = true;
     
-    const fetchLocation = () => {
+    // Use setTimeout to defer state updates outside effect body
+    setTimeout(() => {
+      if (!mounted) return;
+      
+      // Step 1: Load saved location immediately (instant display)
+      if (savedLocation) {
+        setLocation({
+          lat: savedLocation.lat,
+          lng: savedLocation.lng,
+          name: savedLocation.name,
+        });
+      }
+      
+      // Step 2: Start searching for fresh location in background
+      setIsLocating(true);
+      
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
             if (mounted) {
               const { latitude, longitude } = position.coords;
-              // Use actual user location anywhere in the world
-              setLocation({
+              const newLocation = {
                 lat: latitude,
                 lng: longitude,
                 name: "موقعك الحالي",
-              });
+              };
+              
+              // Update location state
+              setLocation(newLocation);
+              setIsLocating(false);
+              
+              // Save to localStorage for next time
+              saveLocation(newLocation);
             }
           },
           () => {
-            // Keep trying to get location
+            // Could not get new location - keep showing saved location
             if (mounted) {
-              // Don't set a default location, keep trying
-              console.log("Could not get location, will retry...");
+              setIsLocating(false);
+              console.log("Could not get fresh location, using saved location");
             }
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
+      } else {
+        setIsLocating(false);
       }
-    };
-    
-    fetchLocation();
+    }, 0);
     
     return () => {
       mounted = false;
     };
-  }, [authChecked]);
+  }, [authChecked, savedLocation, saveLocation]);
 
   // Watch position when tracking
   useEffect(() => {
@@ -455,6 +482,16 @@ ${window.location.origin}/share/demo123
           onRouteComplete={handleRouteComplete}
           className="absolute inset-0 h-full w-full"
         />
+        
+        {/* Location searching indicator */}
+        {isLocating && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
+            <div className="flex items-center gap-2 bg-blue-500 text-white px-3 py-1.5 rounded-full shadow-lg text-sm">
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>جاري تحديث الموقع...</span>
+            </div>
+          </div>
+        )}
         
         {/* Map overlay gradient */}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10" />
