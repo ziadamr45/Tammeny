@@ -224,7 +224,7 @@ export default function TripDetailsPage() {
 
         {/* Route Map */}
         <Card className="overflow-hidden card-shadow">
-          <div className="h-48 relative">
+          <div className="h-48 relative overflow-hidden">
             <DynamicMap
               center={trip.originCoords}
               destination={trip.destinationCoords}
@@ -247,7 +247,7 @@ export default function TripDetailsPage() {
             <Button
               variant="secondary"
               size="sm"
-              className="absolute bottom-2 left-2 gap-1.5 z-[1001]"
+              className="absolute bottom-2 left-2 gap-1.5 z-20"
               onClick={() => setShowFullMap(true)}
             >
               <Navigation className="w-4 h-4" />
@@ -582,7 +582,7 @@ export default function TripDetailsPage() {
             {/* Close button */}
             <Button
               variant="secondary"
-              className="absolute top-4 right-4 z-[1001] gap-2"
+              className="absolute top-4 right-4 z-20 gap-2"
               onClick={() => setShowFullMap(false)}
             >
               <ChevronLeft className="w-4 h-4" />
@@ -590,7 +590,7 @@ export default function TripDetailsPage() {
             </Button>
 
             {/* Route info */}
-            <div className="absolute bottom-4 left-4 right-4 z-[1001]">
+            <div className="absolute bottom-4 left-4 right-4 z-20">
               <Card className="bg-white/95 backdrop-blur-sm">
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between">

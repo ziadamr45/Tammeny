@@ -406,7 +406,7 @@ export default function ViewerPage() {
       )}
 
       {/* Map */}
-      <div ref={mapRef} className="relative h-[40vh] overflow-hidden">
+      <div ref={mapRef} className="relative h-[40vh] overflow-hidden shrink-0">
         {/* Real OpenStreetMap */}
         <DynamicMap
           center={session.currentLocation}
@@ -415,15 +415,15 @@ export default function ViewerPage() {
           showUserLocation={!hasArrived}
           markerLabel={session.creatorName}
           destinationLabel={session.destination?.name || "الوجهة"}
-          className="absolute inset-0"
+          className="absolute inset-0 h-full w-full"
         />
         
         {/* Map overlay gradient */}
-        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent pointer-events-none z-[500]" />
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent pointer-events-none z-10" />
 
         {/* Live route indicator */}
         {!hasArrived && session.destination && (
-          <div className="absolute top-4 left-4 z-[600]">
+          <div className="absolute top-4 left-4 z-20">
             <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-lg">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="text-xs font-medium">المسار المباشر</span>
@@ -436,7 +436,7 @@ export default function ViewerPage() {
         
         {/* Arrived celebration overlay */}
         {hasArrived && (
-          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[600]">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-20">
             <div className="text-center animate-in zoom-in duration-500">
               <div className="relative">
                 <div className="absolute inset-0 w-24 h-24 rounded-full bg-green-500/30 animate-ping" />

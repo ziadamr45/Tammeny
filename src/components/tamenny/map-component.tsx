@@ -537,12 +537,12 @@ export function MapComponent({
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative overflow-hidden rounded-xl", className)}>
       {/* Map container */}
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} className="w-full h-full min-h-[200px]" />
       
       {/* Custom controls overlay */}
-      <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+      <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">
         {currentLocation && (
           <button
             onClick={() => mapInstance?.setView([currentLocation.lat, currentLocation.lng], 17)}
@@ -556,7 +556,7 @@ export function MapComponent({
 
       {/* Route info overlay */}
       {showRoute && routeInfo && (
-        <div className="absolute top-4 left-4 z-[1000]">
+        <div className="absolute top-4 left-4 z-[400]">
           <div className="bg-white/95 backdrop-blur-sm px-4 py-3 rounded-xl shadow-lg">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
@@ -588,7 +588,7 @@ export function MapComponent({
 
       {/* Location accuracy indicator */}
       {currentLocation && (
-        <div className="absolute bottom-4 right-4 z-[1000]">
+        <div className="absolute bottom-4 right-4 z-[400]">
           <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-xs font-medium">GPS نشط</span>

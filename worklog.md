@@ -1098,6 +1098,41 @@ Create Emergency SOS Page, Quick Share Widget, Status Widget, and enhance Home P
 3. ✅ **Chat Page** - Redirects to login when not authenticated
 4. ✅ **History Page** - Redirects to login when not authenticated
 5. ✅ **Settings Page** - Redirects to login when not authenticated
+
+---
+## Task ID: Map Component Positioning Fix (Round 15)
+**Date**: 2025-04-04
+**Status**: ✅ Completed
+
+### User Feedback:
+"المربع بتاع الخريطه غير مظبوط في موضع محدد و يخرب شكل التطبيق"
+The map box was not properly positioned and would ruin the app layout.
+
+### Changes Made:
+1. ✅ Fixed Map Component (`/src/components/tamenny/map-component.tsx`):
+   - Added `overflow-hidden rounded-xl` to main container
+   - Added `min-h-[200px]` for minimum height
+   - Reduced z-index from z-[1000] to z-[400] for internal overlays
+
+2. ✅ Fixed Home Page (`/src/app/page.tsx`):
+   - Added `shrink-0` to map container
+   - Updated map className to `h-full w-full`
+   - Reduced z-index values from z-[500], z-[600] to z-10, z-20
+
+3. ✅ Fixed Share/Viewer Page (`/src/app/share/[id]/page.tsx`):
+   - Same positioning fixes as home page
+   - Consistent z-index hierarchy
+
+4. ✅ Fixed Trip Details Page (`/src/app/trip/[id]/page.tsx`):
+   - Added `overflow-hidden` to map container
+   - Reduced z-index from z-[1001] to z-20
+
+### Stage Summary:
+- Map now stays within its designated container bounds
+- No layout breaking when map loads
+- Consistent z-index hierarchy across all pages
+- All 4 files using DynamicMap updated
+- ESLint passes with no errors
 6. ✅ **Dashboard Page** - Was showing mock data (156 trips) - **FIXED**
 
 ### Issues Found:

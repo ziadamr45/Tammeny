@@ -436,7 +436,7 @@ ${window.location.origin}/share/demo123
       )}
 
       {/* Map Background */}
-      <div className="relative h-[45vh] overflow-hidden">
+      <div className="relative h-[45vh] overflow-hidden shrink-0">
         {/* Real OpenStreetMap with Route */}
         <DynamicMap
           center={location || undefined}
@@ -450,15 +450,15 @@ ${window.location.origin}/share/demo123
           animateMarker={animateMarker}
           routeInfo={routeInfo}
           onRouteComplete={handleRouteComplete}
-          className="absolute inset-0"
+          className="absolute inset-0 h-full w-full"
         />
         
         {/* Map overlay gradient */}
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-[500]" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10" />
 
         {/* Live Now Indicator */}
         {status === "sharing" && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[600] animate-in slide-in-from-top duration-300">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 animate-in slide-in-from-top duration-300">
             <div className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-full shadow-lg">
               <div className="relative">
                 <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
@@ -472,7 +472,7 @@ ${window.location.origin}/share/demo123
 
         {/* Route Info Card */}
         {destination && showRoute && (
-          <div className="absolute top-4 left-4 right-4 z-[600] animate-in slide-in-from-top duration-300">
+          <div className="absolute top-4 left-4 right-4 z-20 animate-in slide-in-from-top duration-300">
             <Card className="p-3 bg-white/95 backdrop-blur-sm shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -523,7 +523,7 @@ ${window.location.origin}/share/demo123
         )}
 
         {/* Status cards overlay */}
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="absolute bottom-4 left-4 right-4 z-20">
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
             <EnhancedStatusCard
               icon={<Shield className="w-5 h-5" />}
