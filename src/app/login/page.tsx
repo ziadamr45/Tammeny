@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -122,13 +123,12 @@ export default function LoginPage() {
 
             {/* Forgot Password */}
             <div className="text-left">
-              <button
-                type="button"
-                onClick={() => toast.info("قريباً")}
+              <Link
+                href="/forgot-password"
                 className="text-sm text-primary hover:underline"
               >
                 نسيت كلمة المرور؟
-              </button>
+              </Link>
             </div>
 
             {/* Submit Button */}

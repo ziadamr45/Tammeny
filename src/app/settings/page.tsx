@@ -27,6 +27,7 @@ import {
   History,
   Palette,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
@@ -77,15 +78,15 @@ export default function SettingsPage() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">
-          <Link href="/contacts">
-            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-primary/20">
+          <Link href="/emergency-contacts">
+            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-red-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5 text-primary" />
+                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">أضف أماناً!</div>
-                  <div className="text-xs text-muted-foreground">10 أصدقاء</div>
+                  <div className="font-medium text-sm">جهات الطوارئ</div>
+                  <div className="text-xs text-muted-foreground">SOS</div>
                 </div>
               </div>
             </Card>
@@ -99,6 +100,32 @@ export default function SettingsPage() {
                 <div>
                   <div className="font-medium text-sm">سجل الرحلات</div>
                   <div className="text-xs text-muted-foreground">عرض التاريخ</div>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/notifications">
+            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <Bell className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">الإشعارات</div>
+                  <div className="text-xs text-muted-foreground">المركز</div>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/contacts">
+            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-primary/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">جهات الاتصال</div>
+                  <div className="text-xs text-muted-foreground">إدارة</div>
                 </div>
               </div>
             </Card>
