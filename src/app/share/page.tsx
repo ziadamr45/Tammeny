@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,22 +18,32 @@ import {
   Users,
   Plus,
   X,
+  Zap,
+  Timer,
+  Hourglass,
+  Infinity,
+  Sparkles,
+  ChevronLeft,
+  Search,
+  Map,
+  Target,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const DURATION_OPTIONS = [
-  { value: 5, label: "٥ دقائق", description: "مشاركة سريعة" },
-  { value: 30, label: "٣٠ دقيقة", description: "رحلة قصيرة" },
-  { value: 60, label: "ساعة واحدة", description: "رحلة متوسطة" },
-  { value: 120, label: "ساعتين", description: "رحلة طويلة" },
-  { value: -1, label: "حتى الوصول", description: "تتبع مستمر" },
+  { value: 5, label: "٥ دقائق", description: "مشاركة سريعة", icon: Zap, color: "bg-yellow-500" },
+  { value: 30, label: "٣٠ دقيقة", description: "رحلة قصيرة", icon: Timer, color: "bg-blue-500" },
+  { value: 60, label: "ساعة واحدة", description: "رحلة متوسطة", icon: Clock, color: "bg-green-500" },
+  { value: 120, label: "ساعتين", description: "رحلة طويلة", icon: Hourglass, color: "bg-purple-500" },
+  { value: -1, label: "حتى الوصول", description: "تتبع مستمر", icon: Infinity, color: "bg-primary" },
 ];
 
 export default function SharePage() {
   const [selectedDuration, setSelectedDuration] = useState(5);
   const [destination, setDestination] = useState("");
+  const [showDestinationSearch, setShowDestinationSearch] = useState(false);
   const [isGhostMode, setIsGhostMode] = useState(false);
   const [isRestricted, setIsRestricted] = useState(false);
   const [allowedEmails, setAllowedEmails] = useState<string[]>([]);
@@ -42,6 +52,7 @@ export default function SharePage() {
   const [shareLink, setShareLink] = useState("");
   const [copied, setCopied] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Get current location
   useEffect(() => {
@@ -61,10 +72,13 @@ export default function SharePage() {
     }
   }, []);
 
+  const countdownRef = useRef<number | null>(null);
+
   const handleAddEmail = () => {
     if (newEmail && !allowedEmails.includes(newEmail)) {
       setAllowedEmails([...allowedEmails, newEmail]);
       setNewEmail("");
+      toast.success("تم إضافة البريد الإلكتروني");
     }
   };
 
@@ -78,10 +92,16 @@ export default function SharePage() {
       return;
     }
 
+    setIsAnimating(true);
+    
+    // Simulate processing
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Generate a mock share link
     const mockEncryptedId = btoa(`session-${Date.now()}`);
     const link = `${window.location.origin}/share/${mockEncryptedId}`;
     setShareLink(link);
+    setIsAnimating(false);
     setShowSuccessModal(true);
   };
 
@@ -130,62 +150,157 @@ ${shareLink}
     }
   };
 
+  const popularDestinations = [
+    { name: "المنزل", icon: "🏠" },
+    { name: "العمل", icon: "🏢" },
+    { name: "الجامعة", icon: "🎓" },
+    { name: "المطار", icon: "✈️" },
+  ];
+
   return (
     <main className="min-h-screen bg-background pb-20">
       <Header />
 
       <div className="pt-16 px-4 space-y-6">
-        <h1 className="text-xl font-bold">شارك موقعك</h1>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">شارك موقعك</h1>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span>GPS نشط</span>
+          </div>
+        </div>
+
+        {/* Location Status Card */}
+        <Card className="p-4 card-shadow bg-gradient-to-l from-primary/10 to-teal-dark/5 border-primary/20">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+              <MapPin className="w-6 h-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <div className="text-sm text-muted-foreground">موقعك الحالي</div>
+              <div className="font-medium">
+                {location ? "تم تحديد الموقع" : "جاري التحديد..."}
+              </div>
+            </div>
+            {location && (
+              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                <Check className="w-4 h-4 text-green-600" />
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Duration Selection */}
         <Card className="p-4 card-shadow">
-          <h3 className="font-medium mb-3 flex items-center gap-2">
+          <h3 className="font-medium mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-primary" />
             مدة المشاركة
           </h3>
-          <div className="grid grid-cols-2 gap-2">
-            {DURATION_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                onClick={() => setSelectedDuration(option.value)}
-                className={cn(
-                  "p-3 rounded-xl border-2 text-right transition-all",
-                  selectedDuration === option.value
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <div className="font-medium">{option.label}</div>
-                <div className="text-xs text-muted-foreground">
-                  {option.description}
-                </div>
-              </button>
-            ))}
+          <div className="space-y-2">
+            {DURATION_OPTIONS.map((option) => {
+              const IconComponent = option.icon;
+              const isSelected = selectedDuration === option.value;
+              
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => setSelectedDuration(option.value)}
+                  className={cn(
+                    "w-full p-4 rounded-xl border-2 text-right transition-all duration-300 relative overflow-hidden group",
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
+                      : "border-border hover:border-primary/50 hover:bg-muted/50"
+                  )}
+                >
+                  {/* Selection indicator */}
+                  <div
+                    className={cn(
+                      "absolute top-0 left-0 w-1 h-full bg-primary transition-all duration-300",
+                      isSelected ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                      isSelected ? option.color + " text-white shadow-lg" : "bg-muted"
+                    )}>
+                      <IconComponent className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium">{option.label}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {option.description}
+                      </div>
+                    </div>
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300",
+                        isSelected
+                          ? "border-primary bg-primary"
+                          : "border-border group-hover:border-primary/50"
+                      )}
+                    >
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-white animate-in zoom-in duration-200" />
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </Card>
 
         {/* Destination */}
         <Card className="p-4 card-shadow">
           <h3 className="font-medium mb-3 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-primary" />
+            <Target className="w-5 h-5 text-primary" />
             الوجهة (اختياري)
           </h3>
-          <Input
-            placeholder="ابحث عن وجهة..."
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="bg-secondary border-0 rounded-xl"
-          />
+          
+          {/* Quick destinations */}
+          <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-hide">
+            {popularDestinations.map((dest) => (
+              <button
+                key={dest.name}
+                onClick={() => setDestination(dest.name)}
+                className={cn(
+                  "px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all border-2",
+                  destination === dest.name
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                <span className="ml-1">{dest.icon}</span>
+                {dest.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Search input */}
+          <div className="relative">
+            <Input
+              placeholder="ابحث عن وجهة..."
+              value={destination}
+              onChange={(e) => setDestination(e.target.value)}
+              className="bg-secondary border-0 rounded-xl pr-10"
+            />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          </div>
+          
           {destination && (
-            <div className="mt-3 p-3 bg-primary/10 rounded-xl flex items-center justify-between">
+            <div className="mt-3 p-3 bg-primary/10 rounded-xl flex items-center justify-between animate-in slide-in-from-top duration-200">
               <div className="flex items-center gap-2">
                 <Navigation className="w-4 h-4 text-primary" />
-                <span className="text-sm">{destination}</span>
+                <span className="text-sm font-medium">{destination}</span>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setDestination("")}
+                className="h-8 w-8 p-0"
               >
                 <X className="w-4 h-4" />
               </Button>
@@ -203,15 +318,20 @@ ${shareLink}
           {/* Ghost Mode */}
           <div
             className={cn(
-              "p-3 rounded-xl border-2 mb-2 cursor-pointer transition-all",
+              "p-4 rounded-xl border-2 mb-3 cursor-pointer transition-all duration-300",
               isGhostMode
-                ? "border-primary bg-primary/10"
+                ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
                 : "border-border hover:border-primary/50"
             )}
             onClick={() => setIsGhostMode(!isGhostMode)}
           >
             <div className="flex items-center gap-3">
-              <Eye className="w-5 h-5 text-primary" />
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                isGhostMode ? "bg-primary text-white" : "bg-muted"
+              )}>
+                <Eye className="w-5 h-5" />
+              </div>
               <div className="flex-1">
                 <div className="font-medium">الوضع الخفي</div>
                 <div className="text-xs text-muted-foreground">
@@ -220,11 +340,16 @@ ${shareLink}
               </div>
               <div
                 className={cn(
-                  "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                  isGhostMode ? "border-primary bg-primary" : "border-border"
+                  "w-12 h-7 rounded-full p-1 transition-all duration-300",
+                  isGhostMode ? "bg-primary" : "bg-muted"
                 )}
               >
-                {isGhostMode && <Check className="w-3 h-3 text-white" />}
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
+                    isGhostMode ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
               </div>
             </div>
           </div>
@@ -232,15 +357,20 @@ ${shareLink}
           {/* Restricted Access */}
           <div
             className={cn(
-              "p-3 rounded-xl border-2 cursor-pointer transition-all",
+              "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
               isRestricted
-                ? "border-primary bg-primary/10"
+                ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
                 : "border-border hover:border-primary/50"
             )}
             onClick={() => setIsRestricted(!isRestricted)}
           >
             <div className="flex items-center gap-3">
-              <Lock className="w-5 h-5 text-primary" />
+              <div className={cn(
+                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                isRestricted ? "bg-primary text-white" : "bg-muted"
+              )}>
+                <Lock className="w-5 h-5" />
+              </div>
               <div className="flex-1">
                 <div className="font-medium">مشاركة خاصة</div>
                 <div className="text-xs text-muted-foreground">
@@ -249,30 +379,36 @@ ${shareLink}
               </div>
               <div
                 className={cn(
-                  "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                  isRestricted ? "border-primary bg-primary" : "border-border"
+                  "w-12 h-7 rounded-full p-1 transition-all duration-300",
+                  isRestricted ? "bg-primary" : "bg-muted"
                 )}
               >
-                {isRestricted && <Check className="w-3 h-3 text-white" />}
+                <div
+                  className={cn(
+                    "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
+                    isRestricted ? "translate-x-5" : "translate-x-0"
+                  )}
+                />
               </div>
             </div>
           </div>
 
           {/* Allowed Emails */}
           {isRestricted && (
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-3 animate-in slide-in-from-top duration-200">
               <div className="flex gap-2">
                 <Input
                   placeholder="أضف بريد إلكتروني..."
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
                   className="bg-secondary border-0 rounded-xl"
+                  onKeyDown={(e) => e.key === "Enter" && handleAddEmail()}
                 />
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={handleAddEmail}
-                  className="shrink-0"
+                  className="shrink-0 rounded-xl"
                 >
                   <Plus className="w-4 h-4" />
                 </Button>
@@ -282,10 +418,14 @@ ${shareLink}
                   {allowedEmails.map((email) => (
                     <div
                       key={email}
-                      className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
+                      className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm animate-in zoom-in duration-200"
                     >
+                      <Users className="w-3 h-3" />
                       {email}
-                      <button onClick={() => handleRemoveEmail(email)}>
+                      <button
+                        onClick={() => handleRemoveEmail(email)}
+                        className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                      >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
@@ -299,11 +439,32 @@ ${shareLink}
         {/* Share Button */}
         <Button
           onClick={handleShare}
-          className="w-full h-14 text-lg rounded-xl bg-primary"
+          disabled={isAnimating || !location}
+          className="w-full h-16 text-lg rounded-2xl bg-gradient-to-l from-primary to-teal-dark hover:opacity-90 transition-all duration-300 shadow-lg shadow-primary/30 relative overflow-hidden group"
         >
-          <Share2 className="w-5 h-5 ml-2" />
-          شارك موقعك دلوقتي
+          {/* Animated background */}
+          <div className="absolute inset-0 bg-gradient-to-l from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
+          
+          <div className="flex items-center gap-2 relative z-10">
+            {isAnimating ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>جاري إنشاء الرابط...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>شارك موقعك دلوقتي</span>
+                <Share2 className="w-5 h-5" />
+              </>
+            )}
+          </div>
         </Button>
+
+        {/* Help text */}
+        <p className="text-center text-sm text-muted-foreground">
+          سيتم إنشاء رابط مشفر آمن لمشاركة موقعك
+        </p>
       </div>
 
       <BottomNav />
@@ -317,48 +478,69 @@ ${shareLink}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Success animation */}
             <div className="flex items-center justify-center">
-              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-                <Check className="w-10 h-10 text-green-500" />
+              <div className="relative">
+                <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center">
+                  <Check className="w-12 h-12 text-green-500 animate-in zoom-in duration-300" />
+                </div>
+                <div className="absolute inset-0 rounded-full border-4 border-green-500 animate-ping opacity-20" />
               </div>
             </div>
 
-            <div className="bg-secondary rounded-xl p-3">
+            {/* Share link preview */}
+            <div className="bg-secondary rounded-xl p-4 border-2 border-dashed border-primary/30">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium text-primary">رابط مشفر آمن</span>
+              </div>
               <p className="text-sm text-muted-foreground text-center break-all">
                 {shareLink}
               </p>
             </div>
 
+            {/* Duration info */}
+            <div className="bg-primary/10 rounded-xl p-3 text-center">
+              <div className="flex items-center justify-center gap-2 text-primary">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm">
+                  الرابط صالح لمدة{" "}
+                  {selectedDuration === -1
+                    ? "٢٤ ساعة أو حتى الوصول"
+                    : selectedDuration >= 60
+                    ? `${selectedDuration / 60} ساعة`
+                    : `${selectedDuration} دقيقة`}
+                </span>
+              </div>
+            </div>
+
+            {/* Action buttons */}
             <div className="flex gap-3">
               <Button
                 onClick={handleCopyLink}
                 variant="outline"
-                className="flex-1 rounded-xl"
+                className="flex-1 rounded-xl h-12"
               >
                 {copied ? (
-                  <Check className="w-4 h-4 ml-2" />
+                  <>
+                    <Check className="w-4 h-4 ml-2 text-green-500" />
+                    <span className="text-green-500">تم النسخ</span>
+                  </>
                 ) : (
-                  <Copy className="w-4 h-4 ml-2" />
+                  <>
+                    <Copy className="w-4 h-4 ml-2" />
+                    نسخ الرسالة
+                  </>
                 )}
-                {copied ? "تم النسخ" : "نسخ الرسالة"}
               </Button>
               <Button
                 onClick={handleShareNative}
-                className="flex-1 rounded-xl bg-primary"
+                className="flex-1 rounded-xl h-12 bg-primary"
               >
                 <Share2 className="w-4 h-4 ml-2" />
                 مشاركة
               </Button>
             </div>
-
-            <p className="text-xs text-center text-muted-foreground">
-              الرابط صالح لمدة{" "}
-              {selectedDuration === -1
-                ? "٢٤ ساعة أو حتى الوصول"
-                : selectedDuration >= 60
-                ? `${selectedDuration / 60} ساعة`
-                : `${selectedDuration} دقيقة`}
-            </p>
           </div>
         </DialogContent>
       </Dialog>
