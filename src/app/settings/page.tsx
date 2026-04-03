@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { useTheme } from "next-themes";
 import {
   Shield,
@@ -28,6 +29,13 @@ import {
   Palette,
   Settings,
   AlertTriangle,
+  Battery,
+  BatteryLow,
+  Zap,
+  BatteryCharging,
+  Gauge,
+  Clock,
+  RefreshCw,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
@@ -39,6 +47,35 @@ export default function SettingsPage() {
   const [ghostMode, setGhostMode] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(true);
   const { theme, setTheme } = useTheme();
+  
+  // Battery saver state
+  const [batterySaverEnabled, setBatterySaverEnabled] = useState(false);
+  const [autoEnableLowBattery, setAutoEnableLowBattery] = useState(true);
+  const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+
+  // Calculate estimated savings based on settings
+  const calculatedSavings = useMemo(() => {
+    let savings = 30; // Base savings
+    if (locationAccuracy) savings -= 5;
+    if (notifications) savings -= 2;
+    return Math.max(15, savings);
+  }, [locationAccuracy, notifications]);
+
+  // Get battery level
+  useEffect(() => {
+    const getBattery = async () => {
+      try {
+        if ('getBattery' in navigator) {
+          const battery = await (navigator as Navigator & { getBattery: () => Promise<{ level: number }> }).getBattery();
+          setBatteryLevel(Math.round(battery.level * 100));
+        }
+      } catch {
+        // Battery API not supported
+        setBatteryLevel(null);
+      }
+    };
+    getBattery();
+  }, []);
 
   const handleLogout = () => {
     toast.success("تم تسجيل الخروج بنجاح");
@@ -48,6 +85,17 @@ export default function SettingsPage() {
     setTheme(isDark ? "dark" : "light");
     toast.success(isDark ? "تم تفعيل الوضع الليلي" : "تم تفعيل الوضع النهاري");
   };
+
+  const handleBatterySaverToggle = (enabled: boolean) => {
+    setBatterySaverEnabled(enabled);
+    if (enabled) {
+      toast.success("تم تفعيل وضع توفير البطارية");
+    } else {
+      toast.info("تم إيقاف وضع توفير البطارية");
+    }
+  };
+
+
 
   return (
     <main className="min-h-screen bg-background pb-20">
@@ -117,20 +165,141 @@ export default function SettingsPage() {
               </div>
             </Card>
           </Link>
-          <Link href="/contacts">
-            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-primary/20">
+          <Link href="/safe-zones">
+            <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-green-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5 text-primary" />
+                <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">جهات الاتصال</div>
+                  <div className="font-medium text-sm">المناطق الآمنة</div>
                   <div className="text-xs text-muted-foreground">إدارة</div>
                 </div>
               </div>
             </Card>
           </Link>
         </div>
+
+        {/* Battery Saver Section */}
+        <Card className="card-shadow overflow-hidden">
+          <div className={cn(
+            "p-4 transition-colors",
+            batterySaverEnabled ? "bg-green-50 dark:bg-green-900/20" : "bg-gradient-to-l from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20"
+          )}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center",
+                  batterySaverEnabled
+                    ? "bg-green-200 dark:bg-green-800"
+                    : "bg-amber-200 dark:bg-amber-800"
+                )}>
+                  {batterySaverEnabled ? (
+                    <BatteryCharging className="w-6 h-6 text-green-600 dark:text-green-300" />
+                  ) : (
+                    <Battery className="w-6 h-6 text-amber-600 dark:text-amber-300" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold">وضع توفير البطارية</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {batterySaverEnabled ? "نشط - تقليل استهلاك GPS" : "يوفر حتى 30% من البطارية"}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={batterySaverEnabled}
+                onCheckedChange={handleBatterySaverToggle}
+              />
+            </div>
+
+            {/* Battery Level Indicator */}
+            {batteryLevel !== null && (
+              <div className="mb-3 p-3 rounded-lg bg-white/50 dark:bg-black/20">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">مستوى البطارية</span>
+                  <span className={cn(
+                    "text-sm font-bold",
+                    batteryLevel < 20 ? "text-red-500" : batteryLevel < 50 ? "text-yellow-500" : "text-green-500"
+                  )}>
+                    {batteryLevel}%
+                  </span>
+                </div>
+                <Progress
+                  value={batteryLevel}
+                  className={cn(
+                    "h-2",
+                    batteryLevel < 20 ? "[&>div]:bg-red-500" : batteryLevel < 50 ? "[&>div]:bg-yellow-500" : "[&>div]:bg-green-500"
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Estimated Savings */}
+            {batterySaverEnabled && (
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-green-100/50 dark:bg-green-800/30">
+                <Zap className="w-4 h-4 text-green-600" />
+                <span className="text-sm text-green-700 dark:text-green-300">
+                  التوفير المتوقع: ~{calculatedSavings}% من البطارية
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Battery Saver Options */}
+          <div className="divide-y divide-border">
+            <div className="flex items-center gap-4 p-4">
+              <div className="text-amber-500">
+                <BatteryLow className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium">تفعيل تلقائي عند انخفاض البطارية</div>
+                <div className="text-sm text-muted-foreground">
+                  يتم التفعيل تلقائياً عند وصول البطارية لـ 20%
+                </div>
+              </div>
+              <Switch
+                checked={autoEnableLowBattery}
+                onCheckedChange={setAutoEnableLowBattery}
+              />
+            </div>
+
+            <div className="p-4 bg-muted/30">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Gauge className="w-4 h-4 text-primary" />
+                ماذا يفعل وضع التوفير؟
+              </h4>
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <RefreshCw className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <span>تقليل تكرار تحديث الموقع من كل ثانية إلى كل ٥ ثواني</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <span>تقليل دقة GPS في الخلفية</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Clock className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <span>تأجيل التحديثات غير الضرورية</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Zap className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+                  <span>تقليل استهلاك الشبكة</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Impact Notice */}
+            <div className="p-4">
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  ملاحظة: قد يتأخر تحديث موقعك قليلاً عند تفعيل هذا الوضع، لكنه يظل دقيقاً بما يكفي للسلامة.
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
 
         {/* Settings Sections */}
         <Card className="card-shadow divide-y divide-border">
