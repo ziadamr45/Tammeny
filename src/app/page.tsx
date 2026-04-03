@@ -13,6 +13,13 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import {
+  toArabicNumerals,
+  formatArabicNumber,
+  formatArabicDistance,
+  formatArabicDuration,
+  formatArabicTimeFromMinutes,
+} from "@/lib/arabic-numerals";
 
 // Status types
 type AppStatus = "idle" | "tracking" | "sharing";
@@ -392,11 +399,11 @@ ${window.location.origin}/share/demo123
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3" />
-                        {routeInfo?.distance.toFixed(1)} كم
+                        {formatArabicDistance(routeInfo?.distance || 0, "km")}
                       </span>
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {routeInfo?.duration} دقيقة
+                        {formatArabicDuration(routeInfo?.duration || 0, "minutes")}
                       </span>
                     </div>
                   </div>
@@ -416,7 +423,7 @@ ${window.location.origin}/share/demo123
                 <div className="mt-3">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-muted-foreground">تقدم الرحلة</span>
-                    <span className="font-medium text-primary">{routeProgress}%</span>
+                    <span className="font-medium text-primary">{toArabicNumerals(routeProgress)}٪</span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
@@ -443,19 +450,19 @@ ${window.location.origin}/share/demo123
             <EnhancedStatusCard
               icon={<MapPin className="w-5 h-5" />}
               label="المسافة"
-              value={`${distance.toFixed(1)} كم`}
+              value={formatArabicDistance(distance, "km")}
               isAnimating={status === "sharing"}
             />
             <EnhancedStatusCard
               icon={<Navigation className="w-5 h-5" />}
               label="السرعة"
-              value={`${speed} كم/س`}
+              value={`${toArabicNumerals(speed)} كم/س`}
               isAnimating={status === "sharing"}
             />
             <EnhancedStatusCard
               icon={<Clock className="w-5 h-5" />}
               label="الوصول"
-              value={`${eta} د`}
+              value={`${toArabicNumerals(eta)} د`}
               isAnimating={status === "sharing"}
             />
           </div>
@@ -511,9 +518,9 @@ ${window.location.origin}/share/demo123
               <div className="flex-1">
                 <div className="font-bold text-lg">{destination.name}</div>
                 <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span>{routeInfo?.distance.toFixed(1)} كم</span>
+                  <span>{formatArabicDistance(routeInfo?.distance || 0, "km")}</span>
                   <span>•</span>
-                  <span>{routeInfo?.duration} دقيقة</span>
+                  <span>{formatArabicDuration(routeInfo?.duration || 0, "minutes")}</span>
                 </div>
               </div>
               <Button
@@ -583,7 +590,7 @@ ${window.location.origin}/share/demo123
                   </Badge>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {selectedDuration === -1 ? "حتى الوصول" : `${selectedDuration} دقيقة`}
+                  {selectedDuration === -1 ? "حتى الوصول" : formatArabicDuration(selectedDuration, "minutes")}
                 </div>
               </div>
               <Button
@@ -600,7 +607,7 @@ ${window.location.origin}/share/demo123
             <div className="mt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">تقدم المشاركة</span>
-                <span className="font-medium text-primary">{sharingProgress}%</span>
+                <span className="font-medium text-primary">{toArabicNumerals(sharingProgress)}٪</span>
               </div>
               <div className="h-3 bg-primary/20 rounded-full overflow-hidden relative">
                 <div 
@@ -617,17 +624,17 @@ ${window.location.origin}/share/demo123
             <div className="mt-4 grid grid-cols-3 gap-2">
               <div className="bg-white/50 rounded-xl p-3 text-center">
                 <Activity className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{speed}</div>
+                <div className="text-lg font-bold">{toArabicNumerals(speed)}</div>
                 <div className="text-xs text-muted-foreground">كم/س</div>
               </div>
               <div className="bg-white/50 rounded-xl p-3 text-center">
                 <Clock className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{eta}</div>
+                <div className="text-lg font-bold">{toArabicNumerals(eta)}</div>
                 <div className="text-xs text-muted-foreground">دقيقة</div>
               </div>
               <div className="bg-white/50 rounded-xl p-3 text-center">
                 <MapPin className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{distance.toFixed(1)}</div>
+                <div className="text-lg font-bold">{toArabicNumerals(distance.toFixed(1))}</div>
                 <div className="text-xs text-muted-foreground">كم</div>
               </div>
             </div>
@@ -786,7 +793,7 @@ ${window.location.origin}/share/demo123
                   </div>
                   <div>
                     <div className="font-medium">المكتب - وسط البلد</div>
-                    <div className="text-sm text-muted-foreground">3.5 كم • 12 دقيقة</div>
+                    <div className="text-sm text-muted-foreground">{formatArabicDistance(3.5, "km")} • {formatArabicDuration(12, "minutes")}</div>
                   </div>
                 </div>
               </button>
@@ -804,7 +811,7 @@ ${window.location.origin}/share/demo123
                   </div>
                   <div>
                     <div className="font-medium">منزل الأهل</div>
-                    <div className="text-sm text-muted-foreground">8.2 كم • 25 دقيقة</div>
+                    <div className="text-sm text-muted-foreground">{formatArabicDistance(8.2, "km")} • {formatArabicDuration(25, "minutes")}</div>
                   </div>
                 </div>
               </button>

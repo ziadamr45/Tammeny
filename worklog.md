@@ -7,6 +7,50 @@ Arabic RTL Progressive Web App (PWA) for real-time location sharing. Designed fo
 ## Current Project Status (Updated: 2025-04-04)
 **Phase**: Production Ready - Full Feature Set with Analytics
 
+### QA Review Summary (Round 10)
+**Date**: 2025-04-04
+**Status**: ✅ All improvements completed
+
+**Changes Made This Session**:
+1. ✅ New Terms of Service Page (`/terms`):
+   - 9 comprehensive sections
+   - Side navigation for desktop
+   - Smooth scrolling
+   - Scroll-to-bottom requirement before accepting
+   - All text in Arabic with RTL layout
+
+2. ✅ New Privacy Policy Page (`/privacy`):
+   - 11 comprehensive sections
+   - Key highlights cards
+   - Side navigation
+   - AES-256 encryption mentioned
+   - All text in Arabic with RTL layout
+
+3. ✅ Live Location Preview Component:
+   - Mini map with current location
+   - Real-time coordinates using Arabic numerals
+   - Speed indicator, Altitude, Accuracy circle
+   - Last updated timestamp
+   - Share and Refresh buttons
+   - Expand/collapse toggle
+   - Auto-refresh every 30 seconds
+
+4. ✅ Applied Arabic Numerals to Home Page:
+   - All distance displays use formatArabicDistance()
+   - All duration displays use formatArabicDuration()
+   - All numeric displays use toArabicNumerals()
+   - Progress percentages in Arabic numerals
+
+**Screenshots Available**:
+- /download/qa-round10-home.png
+- /download/qa-round10-help.png
+- /download/qa-round10-onboarding.png
+- /download/qa-round10-dashboard.png
+- /download/qa-round10-terms.png
+- /download/qa-round10-privacy.png
+- /download/qa-round10-home-arabic.png
+
+---
 ### QA Review Summary (Round 9)
 **Date**: 2025-04-04
 **Status**: ✅ All improvements completed
@@ -242,6 +286,8 @@ Arabic RTL Progressive Web App (PWA) for real-time location sharing. Designed fo
 - ✅ Dashboard (/dashboard) - **NEW** Added (Round 8)
 - ✅ Help (/help) - **NEW** Added (Round 9)
 - ✅ Onboarding (/onboarding) - **NEW** Added (Round 9)
+- ✅ Terms (/terms) - **NEW** Added (Round 10)
+- ✅ Privacy (/privacy) - **NEW** Added (Round 10)
 
 **Screenshots Available**:
 - /download/qa-round5-home.png
@@ -302,6 +348,10 @@ Arabic RTL Progressive Web App (PWA) for real-time location sharing. Designed fo
 35. ✅ **Help/Support Page** (NEW)
 36. ✅ **Onboarding/Welcome Page** (NEW)
 37. ✅ **Arabic Numerals Utility** (NEW)
+38. ✅ **Terms of Service Page** (NEW)
+39. ✅ **Privacy Policy Page** (NEW)
+40. ✅ **Live Location Preview Component** (NEW)
+41. ✅ **Arabic Numerals Applied to UI** (NEW)
 
 ---
 ## Technical Stack
@@ -341,8 +391,10 @@ Arabic RTL Progressive Web App (PWA) for real-time location sharing. Designed fo
     /history/page.tsx  - Session history
     /safe-zones/page.tsx - Safe zones/geofencing
     /dashboard/page.tsx - Analytics dashboard
-    /help/page.tsx     - Help/Support with FAQ (NEW)
-    /onboarding/page.tsx - Welcome onboarding (NEW)
+    /help/page.tsx     - Help/Support with FAQ
+    /onboarding/page.tsx - Welcome onboarding
+    /terms/page.tsx    - Terms of Service (NEW)
+    /privacy/page.tsx  - Privacy Policy (NEW)
     /api/auth/*        - Auth endpoints
     /api/sessions/*    - Session management
     /api/location/*    - Location updates
@@ -351,6 +403,7 @@ Arabic RTL Progressive Web App (PWA) for real-time location sharing. Designed fo
     /share-card.tsx    - Share UI components
     /map-component.tsx - OpenStreetMap component
     /safety-checkin.tsx - Safety check-in feature
+    /live-location-preview.tsx - Live location preview (NEW)
   /lib
     auth.ts            - JWT utilities
     encryption.ts      - AES encryption
@@ -615,6 +668,70 @@ Stage Summary:
 - Onboarding provides smooth 5-step welcome experience
 - Arabic numerals utility offers complete numeral conversion/formatting
 - All pages use existing shadcn/ui components (Accordion, Card, Button, Input, etc.)
+- Maintained teal (#0D7377) theme consistency throughout
+- All text in Arabic with RTL layout
+- ESLint passes with no errors
+- Dev server running without issues
+
+---
+Task ID: 5
+Agent: full-stack-developer
+Task: Add Terms, Privacy Policy, Live Location Preview, and apply Arabic numerals
+
+Work Log:
+- Created Terms of Service Page (`/src/app/terms/page.tsx`):
+  - Introduction and acceptance section with decorative card
+  - 9 comprehensive sections covering: User responsibilities, Privacy/data collection, Location sharing terms, Service limitations, Intellectual property, Disclaimer/liability, Changes to terms, Governing law, Contact information
+  - Side navigation for desktop with smooth scroll to sections
+  - Scroll-to-bottom requirement before accepting terms
+  - Accept/Reject buttons with visual feedback
+  - Last updated date using Arabic numerals (formatArabicDate)
+  - All text in Arabic with RTL layout
+
+- Created Privacy Policy Page (`/src/app/privacy/page.tsx`):
+  - Introduction section with key highlights card
+  - 11 comprehensive sections covering: Information collection, Usage of information, Location data handling, Data sharing, Data security (AES-256 encryption mentioned), User rights, Cookies/tracking, Children's privacy, International data transfers, Updates, Contact information
+  - Side navigation for desktop with scrollable sections
+  - Key highlights cards: Encryption, No data selling, Temporary location, Full control
+  - Last updated date using Arabic numerals
+  - All text in Arabic with RTL layout
+
+- Created Live Location Preview Component (`/src/components/tamenny/live-location-preview.tsx`):
+  - Main LiveLocationPreview component with:
+    - Mini map with current location (using DynamicMap)
+    - Real-time coordinates display using Arabic numerals
+    - Speed indicator (km/h) with Arabic numerals
+    - Altitude display (if available)
+    - Accuracy circle with color coding (green/yellow/red)
+    - Last updated timestamp
+    - Refresh button for manual location update
+    - Share button for quick sharing
+    - Expand/collapse toggle for larger view
+    - Auto-refresh every 30 seconds when collapsed
+    - Real-time watch position when expanded
+  - LiveLocationCompact: Compact inline version for quick display
+  - LiveCoordinates: Helper component for coordinate display
+  - All numeric values use Arabic numerals utility functions
+
+- Applied Arabic Numerals to Home Page (`/src/app/page.tsx`):
+  - Imported Arabic numerals utility functions
+  - Updated all distance displays to use formatArabicDistance()
+  - Updated all duration displays to use formatArabicDuration()
+  - Updated all number displays to use toArabicNumerals()
+  - Updated progress percentages to use Arabic numerals
+  - Updated route info cards with Arabic numerals
+  - Updated live stats row (speed, ETA, distance) with Arabic numerals
+  - Updated destination modal distances with Arabic numerals
+  - Updated stats card values with Arabic numerals
+
+Stage Summary:
+- Created 4 new files: Terms page, Privacy page, Live Location Preview component
+- Modified 1 existing file: Home page (Arabic numerals integration)
+- Terms page includes 9 comprehensive sections with acceptance workflow
+- Privacy page includes 11 comprehensive sections with highlights
+- Live Location Preview provides real-time location data with Arabic numerals
+- All numeric displays throughout the app now use Arabic numerals
+- All pages use existing shadcn/ui components (Card, Button, Badge, Dialog, etc.)
 - Maintained teal (#0D7377) theme consistency throughout
 - All text in Arabic with RTL layout
 - ESLint passes with no errors
