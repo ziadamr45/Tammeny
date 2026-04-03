@@ -4,7 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
-import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check } from "lucide-react";
+import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
+import { QuickShareWidget, QuickShareCompact } from "@/components/tamenny/quick-share-widget";
+import { StatusWidget, LiveStats } from "@/components/tamenny/status-widget";
+import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, RefreshCw, ChevronDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -68,7 +71,10 @@ export default function HomePage() {
   const [animateMarker, setAnimateMarker] = useState(false);
   const [showRoute, setShowRoute] = useState(false);
   const [waypoints, setWaypoints] = useState<{ lat: number; lng: number; name?: string }[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   const mapRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<number | null>(null);
 
   // Calculate route info when destination is set
   const routeInfo = destination ? {
@@ -217,6 +223,44 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
+  // Pull to refresh simulation
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        touchStartRef.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (touchStartRef.current !== null && window.scrollY === 0) {
+        const pull = e.touches[0].clientY - touchStartRef.current;
+        setPullDistance(Math.max(0, Math.min(pull, 100)));
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (pullDistance > 60) {
+        setIsRefreshing(true);
+        setTimeout(() => {
+          setIsRefreshing(false);
+          toast.success("تم التحديث!");
+        }, 1500);
+      }
+      setPullDistance(0);
+      touchStartRef.current = null;
+    };
+
+    window.addEventListener("touchstart", handleTouchStart);
+    window.addEventListener("touchmove", handleTouchMove);
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [pullDistance]);
+
   const handleShareLocation = async () => {
     setShowShareModal(true);
   };
@@ -321,6 +365,14 @@ ${window.location.origin}/share/demo123
     setAnimateMarker(false);
   };
 
+  // Quick share handler
+  const handleQuickShare = (duration: number) => {
+    setSelectedDuration(duration);
+    setStatus("sharing");
+    setEta(duration);
+    toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
+  };
+
   const durationOptions = [
     { value: 5, label: "٥ دقائق", description: "مشاركة سريعة" },
     { value: 30, label: "٣٠ دقيقة", description: "رحلة قصيرة" },
@@ -329,7 +381,38 @@ ${window.location.origin}/share/demo123
   ];
 
   return (
-    <main className="min-h-screen bg-background pb-20">
+    <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
+      {/* Animated Background Gradient */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse" style={{ transform: "translate(-30%, -30%)" }} />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl animate-pulse" style={{ transform: "translate(30%, 30%)", animationDelay: "1s" }} />
+        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-purple-500/5 rounded-full blur-3xl animate-pulse" style={{ transform: "translate(-50%, -50%)", animationDelay: "0.5s" }} />
+      </div>
+
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+
+      {/* Pull to Refresh Indicator */}
+      {(pullDistance > 0 || isRefreshing) && (
+        <div
+          className="fixed top-0 left-0 right-0 z-[60] flex justify-center pt-2 pointer-events-none"
+          style={{ transform: `translateY(${Math.min(pullDistance * 0.5, 40)}px)` }}
+        >
+          <div className={cn(
+            "flex flex-col items-center gap-1 transition-all",
+            isRefreshing && "animate-spin"
+          )}>
+            <RefreshCw className={cn(
+              "w-6 h-6 text-primary transition-all",
+              pullDistance > 60 && "text-green-500"
+            )} />
+            <span className="text-xs text-muted-foreground">
+              {isRefreshing ? "جاري التحديث..." : pullDistance > 60 ? "اسحب للتحديث" : "اسحب للأسفل"}
+            </span>
+          </div>
+        </div>
+      )}
+
       <Header />
 
       {/* Emergency Countdown Overlay */}
@@ -469,29 +552,45 @@ ${window.location.origin}/share/demo123
         </div>
 
         {/* Emergency FAB */}
-        <button
-          onClick={handleEmergency}
-          onMouseDown={handleEmergencyButtonDown}
-          onMouseUp={handleEmergencyButtonUp}
-          onMouseLeave={handleEmergencyButtonUp}
-          onTouchStart={handleEmergencyButtonDown}
-          onTouchEnd={handleEmergencyButtonUp}
-          className={cn(
-            "absolute bottom-24 left-4 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 z-20",
-            isEmergencyPressed 
-              ? "bg-destructive/80 scale-95 shadow-destructive/50" 
-              : "bg-destructive hover:scale-105 shadow-destructive/30 hover:shadow-destructive/50"
-          )}
-        >
-          <div className="absolute inset-0 rounded-full bg-destructive animate-ping opacity-30" />
-          <AlertCircle className="w-7 h-7 text-white relative z-10" />
-        </button>
+        <Link href="/sos" className="absolute bottom-24 left-4 z-20">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              handleEmergency();
+            }}
+            onMouseDown={handleEmergencyButtonDown}
+            onMouseUp={handleEmergencyButtonUp}
+            onMouseLeave={handleEmergencyButtonUp}
+            onTouchStart={handleEmergencyButtonDown}
+            onTouchEnd={handleEmergencyButtonUp}
+            className={cn(
+              "w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-200",
+              isEmergencyPressed 
+                ? "bg-destructive/80 scale-95 shadow-destructive/50" 
+                : "bg-destructive hover:scale-105 shadow-destructive/30 hover:shadow-destructive/50"
+            )}
+          >
+            <div className="absolute inset-0 rounded-full bg-destructive animate-ping opacity-30" />
+            <AlertCircle className="w-7 h-7 text-white relative z-10" />
+          </button>
+        </Link>
       </div>
 
       {/* Main Content */}
       <div className="px-4 py-6 space-y-6 -mt-2 relative z-10">
+        {/* Status Widget (when sharing) */}
+        <StatusWidget
+          isSharing={status === "sharing"}
+          duration={selectedDuration}
+          distance={distance}
+          speed={speed}
+          destination={destination || undefined}
+          currentLocation={location || undefined}
+          onStopSharing={handleStopSharing}
+        />
+
         {/* Destination Card */}
-        {!destination ? (
+        {!destination && status !== "sharing" && (
           <Card
             className="p-4 card-shadow cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5"
             onClick={() => setShowDestinationModal(true)}
@@ -507,30 +606,6 @@ ${window.location.origin}/share/demo123
                 </div>
               </div>
               <Navigation className="w-5 h-5 text-muted-foreground" />
-            </div>
-          </Card>
-        ) : (
-          <Card className="p-4 card-shadow border-2 border-primary/30">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <MapPin className="w-7 h-7 text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-lg">{destination.name}</div>
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span>{formatArabicDistance(routeInfo?.distance || 0, "km")}</span>
-                  <span>•</span>
-                  <span>{formatArabicDuration(routeInfo?.duration || 0, "minutes")}</span>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearRoute}
-                className="text-destructive hover:bg-destructive/10"
-              >
-                <X className="w-4 h-4" />
-              </Button>
             </div>
           </Card>
         )}
@@ -571,74 +646,16 @@ ${window.location.origin}/share/demo123
           </Card>
         )}
 
-        {/* Active Sharing Status */}
-        {status === "sharing" && (
-          <Card className="p-4 card-shadow border-2 border-primary bg-primary/5 overflow-hidden relative">
-            {/* Animated background */}
-            <div className="absolute inset-0 bg-gradient-to-l from-primary/5 to-transparent animate-pulse" />
-            
-            <div className="flex items-center gap-4 relative z-10">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center relative">
-                <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-30" />
-                <div className="w-4 h-4 rounded-full bg-white animate-pulse" />
-              </div>
-              <div className="flex-1">
-                <div className="font-bold text-primary text-lg flex items-center gap-2">
-                  جاري المشاركة
-                  <Badge variant="secondary" className="bg-primary text-white animate-pulse">
-                    مباشر
-                  </Badge>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {selectedDuration === -1 ? "حتى الوصول" : formatArabicDuration(selectedDuration, "minutes")}
-                </div>
-              </div>
-              <Button
-                onClick={handleStopSharing}
-                variant="destructive"
-                className="rounded-xl shadow-lg hover:shadow-xl transition-all"
-              >
-                <StopCircle className="w-4 h-4 ml-2" />
-                إيقاف
-              </Button>
-            </div>
-            
-            {/* Enhanced Progress bar */}
-            <div className="mt-4 space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">تقدم المشاركة</span>
-                <span className="font-medium text-primary">{toArabicNumerals(sharingProgress)}٪</span>
-              </div>
-              <div className="h-3 bg-primary/20 rounded-full overflow-hidden relative">
-                <div 
-                  className="h-full bg-gradient-to-l from-primary to-teal-light rounded-full transition-all duration-500 relative overflow-hidden"
-                  style={{ width: `${sharingProgress}%` }}
-                >
-                  {/* Shimmer effect */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_infinite]" />
-                </div>
-              </div>
-            </div>
-
-            {/* Live stats row */}
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="bg-white/50 rounded-xl p-3 text-center">
-                <Activity className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{toArabicNumerals(speed)}</div>
-                <div className="text-xs text-muted-foreground">كم/س</div>
-              </div>
-              <div className="bg-white/50 rounded-xl p-3 text-center">
-                <Clock className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{toArabicNumerals(eta)}</div>
-                <div className="text-xs text-muted-foreground">دقيقة</div>
-              </div>
-              <div className="bg-white/50 rounded-xl p-3 text-center">
-                <MapPin className="w-5 h-5 mx-auto text-primary mb-1" />
-                <div className="text-lg font-bold">{toArabicNumerals(distance.toFixed(1))}</div>
-                <div className="text-xs text-muted-foreground">كم</div>
-              </div>
-            </div>
-          </Card>
+        {/* Quick Share Widget */}
+        {status === "idle" && (
+          <QuickShareWidget
+            onShareStart={(duration) => {
+              setSelectedDuration(duration);
+              setStatus("sharing");
+              setEta(duration);
+              toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
+            }}
+          />
         )}
 
         {/* Quick Actions */}
@@ -673,6 +690,14 @@ ${window.location.origin}/share/demo123
             </Card>
           </Link>
         </div>
+
+        {/* Live Stats (when sharing) */}
+        <LiveStats
+          isSharing={status === "sharing"}
+          distance={distance}
+          speed={speed}
+          eta={eta}
+        />
 
         {/* Notifications Banner */}
         <Card className="p-4 card-shadow bg-gradient-to-l from-yellow-50 to-orange-50 border-yellow-200 border overflow-hidden relative group hover:shadow-lg transition-all">
@@ -853,13 +878,15 @@ ${window.location.origin}/share/demo123
               >
                 إلغاء
               </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 rounded-xl hover:shadow-lg transition-all"
-                onClick={handleEmergencyConfirm}
-              >
-                تأكيد
-              </Button>
+              <Link href="/sos" className="flex-1">
+                <Button
+                  variant="destructive"
+                  className="w-full rounded-xl hover:shadow-lg transition-all"
+                  onClick={handleEmergencyConfirm}
+                >
+                  تأكيد
+                </Button>
+              </Link>
             </div>
           </div>
         </DialogContent>
