@@ -54,26 +54,26 @@ export default function SettingsPage() {
 
       <div className="pt-16 px-4 space-y-6">
         {/* User Profile Card */}
-        <Card className="p-4 card-shadow">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-16 h-16 border-2 border-primary/20">
-              <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
-                أ
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <h2 className="font-bold text-lg">أحمد محمد</h2>
-              <p className="text-sm text-muted-foreground">ahmed@example.com</p>
-              <Badge className="mt-1 bg-primary/10 text-primary gap-1">
-                <Lock className="w-3 h-3" />
-                AES-256 مشفّر
-              </Badge>
+        <Link href="/profile">
+          <Card className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20">
+            <div className="flex items-center gap-4">
+              <Avatar className="w-16 h-16 border-2 border-primary/20">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
+                  أ
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h2 className="font-bold text-lg">أحمد محمد</h2>
+                <p className="text-sm text-muted-foreground">ahmed@example.com</p>
+                <Badge className="mt-1 bg-primary/10 text-primary gap-1">
+                  <Lock className="w-3 h-3" />
+                  AES-256 مشفّر
+                </Badge>
+              </div>
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
             </div>
-            <Button variant="ghost" size="icon" className="rounded-xl">
-              <User className="w-5 h-5 text-muted-foreground" />
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">

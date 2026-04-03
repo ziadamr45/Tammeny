@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DynamicMap } from "@/components/tamenny/map-component";
 import {
   MapPin,
   Navigation,
@@ -283,76 +284,24 @@ export default function ViewerPage() {
       )}
 
       {/* Map */}
-      <div ref={mapRef} className="relative h-[35vh] bg-gradient-to-b from-primary/10 via-primary/5 to-background overflow-hidden">
-        {/* Grid pattern for map simulation */}
-        <div className="absolute inset-0 opacity-10">
-          <svg width="100%" height="100%">
-            <pattern id="viewerGrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="0.5" />
-            </pattern>
-            <rect width="100%" height="100%" fill="url(#viewerGrid)" />
-          </svg>
-        </div>
-
-        {/* Route line simulation */}
-        {session.destination && !hasArrived && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none">
-            <defs>
-              <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="var(--primary)" />
-                <stop offset="100%" stopColor="#22c55e" />
-              </linearGradient>
-            </defs>
-            <line
-              x1="30%"
-              y1="60%"
-              x2="70%"
-              y2="30%"
-              stroke="url(#routeGradient)"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeDasharray="15,8"
-              className="animate-pulse"
-            />
-          </svg>
-        )}
-
-        {/* Current location marker */}
-        {!hasArrived && (
-          <div className="absolute bottom-1/3 right-1/4 z-10">
-            {/* Pulse rings */}
-            <div className="absolute w-20 h-20 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
-            <div className="absolute w-16 h-16 rounded-full bg-primary/15 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
-            
-            {/* Marker */}
-            <div className="relative w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-              <Navigation className="w-6 h-6 text-white" />
-            </div>
-            
-            {/* Speed indicator */}
-            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-card px-3 py-1 rounded-full shadow-md text-sm font-medium whitespace-nowrap">
-              {Math.round(session.speed)} كم/س
-            </div>
-          </div>
-        )}
-
-        {/* Destination marker */}
-        {session.destination && !hasArrived && (
-          <div className="absolute top-1/3 left-1/2 z-10 -translate-x-1/2">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-500/30">
-                <MapPin className="w-6 h-6 text-white" />
-              </div>
-              <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-card px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg border border-border">
-                {session.destination.name}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Arrived celebration */}
+      <div ref={mapRef} className="relative h-[40vh] overflow-hidden">
+        {/* Real OpenStreetMap */}
+        <DynamicMap
+          center={session.currentLocation}
+          destination={session.destination}
+          showRoute={!!session.destination && !hasArrived}
+          showUserLocation={!hasArrived}
+          markerLabel={session.creatorName}
+          destinationLabel={session.destination?.name || "الوجهة"}
+          className="absolute inset-0"
+        />
+        
+        {/* Map overlay gradient */}
+        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent pointer-events-none z-[500]" />
+        
+        {/* Arrived celebration overlay */}
         {hasArrived && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-[600]">
             <div className="text-center animate-in zoom-in duration-500">
               <div className="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/30">
                 <CheckCircle className="w-12 h-12 text-white" />

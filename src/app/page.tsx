@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { StatusCard, ActionButton, ShareOption, DestinationCard } from "@/components/tamenny/share-card";
-import { MapPin, Navigation, Clock, Shield, Eye, Plus, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User } from "lucide-react";
+import { DynamicMap } from "@/components/tamenny/map-component";
+import { MapPin, Navigation, Clock, Shield, Eye, Plus, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -202,60 +203,17 @@ ${window.location.origin}/share/demo123
       )}
 
       {/* Map Background */}
-      <div className="relative h-[45vh] bg-gradient-to-b from-primary/20 to-primary/5 overflow-hidden">
-        {/* Decorative circles */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-40 h-40 bg-primary/10 rounded-full blur-xl" />
-          <div className="absolute top-1/3 -left-10 w-32 h-32 bg-primary/5 rounded-full blur-lg" />
-        </div>
-
-        {/* Map placeholder - in production, use Google Maps */}
-        <div
-          ref={mapRef}
-          className="absolute inset-0 flex items-center justify-center"
-        >
-          {/* Grid pattern for map simulation */}
-          <div className="absolute inset-0 opacity-10">
-            <svg width="100%" height="100%">
-              <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                <path d="M 50 0 L 0 0 0 50" fill="none" stroke="currentColor" strokeWidth="0.5" />
-              </pattern>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-          </div>
-
-          {/* Road lines simulation */}
-          <svg className="absolute inset-0 w-full h-full opacity-20">
-            <line x1="0" y1="30%" x2="100%" y2="70%" stroke="var(--primary)" strokeWidth="2" />
-            <line x1="20%" y1="100%" x2="80%" y2="0" stroke="var(--primary)" strokeWidth="1.5" />
-          </svg>
-
-          {/* Location marker */}
-          {location && (
-            <div className="relative z-10 flex flex-col items-center">
-              {/* Outer pulse rings */}
-              <div className="absolute w-32 h-32 rounded-full bg-primary/10 animate-ping" style={{ animationDuration: '2s' }} />
-              <div className="absolute w-24 h-24 rounded-full bg-primary/15 animate-ping" style={{ animationDuration: '2s', animationDelay: '0.5s' }} />
-              
-              {/* Main marker */}
-              <div className="relative w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center">
-                <div className="w-14 h-14 rounded-full bg-primary/40 flex items-center justify-center">
-                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
-                    <Navigation className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Location label */}
-              <div className="mt-3 bg-card/90 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg border border-primary/10">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-sm font-medium">{location.name}</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+      <div className="relative h-[45vh] overflow-hidden">
+        {/* Real OpenStreetMap */}
+        <DynamicMap
+          center={location || undefined}
+          showUserLocation={true}
+          markerLabel={location?.name || "موقعك الحالي"}
+          className="absolute inset-0"
+        />
+        
+        {/* Map overlay gradient */}
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-[500]" />
 
         {/* Status cards overlay */}
         <div className="absolute bottom-4 left-4 right-4">
