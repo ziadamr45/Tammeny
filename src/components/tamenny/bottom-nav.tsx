@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", icon: Map, label: "الخريطة" },
   { href: "/share", icon: Eye, label: "مشاركة" },
-  { href: "/groups", icon: Users, label: "المجموعات" },
+  { href: "/contacts", icon: Users, label: "جهات الاتصال" },
   { href: "/chat", icon: MessageCircle, label: "الرسائل" },
   { href: "/settings", icon: Settings, label: "الإعدادات" },
 ];
