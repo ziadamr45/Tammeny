@@ -4,11 +4,12 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { StatusCard, ActionButton, ShareOption, DestinationCard } from "@/components/tamenny/share-card";
 import { DynamicMap } from "@/components/tamenny/map-component";
-import { MapPin, Navigation, Clock, Shield, Eye, Plus, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2 } from "lucide-react";
+import { MapPin, Navigation, Clock, Shield, Eye, Plus, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -23,6 +24,16 @@ const MOCK_LOCATION = {
   name: "القاهرة، مصر",
 };
 
+// Route simulation points
+const ROUTE_POINTS = [
+  { lat: 30.0444, lng: 31.2357 },
+  { lat: 30.0450, lng: 31.2365 },
+  { lat: 30.0458, lng: 31.2372 },
+  { lat: 30.0465, lng: 31.2380 },
+  { lat: 30.0472, lng: 31.2388 },
+  { lat: 30.0480, lng: 31.2395 },
+];
+
 export default function HomePage() {
   const [status, setStatus] = useState<AppStatus>("idle");
   const [location, setLocation] = useState<typeof MOCK_LOCATION | null>(null);
@@ -34,6 +45,10 @@ export default function HomePage() {
   const [speed, setSpeed] = useState(0);
   const [duration, setDuration] = useState(0);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [sharingProgress, setSharingProgress] = useState(0);
+  const [routeIndex, setRouteIndex] = useState(0);
+  const [eta, setEta] = useState(0);
+  const [isEmergencyPressed, setIsEmergencyPressed] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
 
   // Get current location on mount
@@ -93,6 +108,45 @@ export default function HomePage() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [status]);
 
+  // Live tracking simulation
+  useEffect(() => {
+    if (status !== "sharing") return;
+
+    // Simulate route progress
+    const routeInterval = setInterval(() => {
+      setRouteIndex((prev) => {
+        const next = (prev + 1) % ROUTE_POINTS.length;
+        setLocation({
+          lat: ROUTE_POINTS[next].lat,
+          lng: ROUTE_POINTS[next].lng,
+          name: "موقعك الحالي",
+        });
+        return next;
+      });
+      setSpeed(Math.floor(Math.random() * 30) + 20);
+      setDistance((prev) => Math.max(0, prev + (Math.random() - 0.5) * 0.5));
+    }, 2000);
+
+    // Simulate ETA countdown
+    const etaInterval = setInterval(() => {
+      setEta((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    // Progress animation
+    const progressInterval = setInterval(() => {
+      setSharingProgress((prev) => {
+        if (prev >= 100) return 0;
+        return prev + 1;
+      });
+    }, selectedDuration === -1 ? 100 : (selectedDuration * 60000 / 100));
+
+    return () => {
+      clearInterval(routeInterval);
+      clearInterval(etaInterval);
+      clearInterval(progressInterval);
+    };
+  }, [status, selectedDuration]);
+
   // Emergency countdown
   useEffect(() => {
     if (countdown === null) return;
@@ -128,6 +182,7 @@ export default function HomePage() {
   const handleConfirmShare = async () => {
     setShowShareModal(false);
     setStatus("sharing");
+    setEta(selectedDuration === -1 ? 30 : selectedDuration);
     
     // Generate share message
     const shareMessage = `أنا مشارك موقعي معاك لمدة ${selectedDuration} دقيقة ⏱️
@@ -159,6 +214,8 @@ ${window.location.origin}/share/demo123
     setDestination(null);
     setDistance(0);
     setDuration(0);
+    setSharingProgress(0);
+    setRouteIndex(0);
     toast.success("تم إيقاف المشاركة");
   };
 
@@ -176,6 +233,14 @@ ${window.location.origin}/share/demo123
     setShowEmergencyModal(false);
   };
 
+  const handleEmergencyButtonDown = () => {
+    setIsEmergencyPressed(true);
+  };
+
+  const handleEmergencyButtonUp = () => {
+    setIsEmergencyPressed(false);
+  };
+
   const durationOptions = [
     { value: 5, label: "٥ دقائق", description: "مشاركة سريعة" },
     { value: 30, label: "٣٠ دقيقة", description: "رحلة قصيرة" },
@@ -190,12 +255,15 @@ ${window.location.origin}/share/demo123
       {/* Emergency Countdown Overlay */}
       {countdown !== null && (
         <div className="fixed inset-0 bg-destructive/95 z-50 flex flex-col items-center justify-center text-white">
-          <div className="text-6xl font-bold mb-4 animate-pulse">{countdown}</div>
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" />
+            <div className="relative text-6xl font-bold mb-4">{countdown}</div>
+          </div>
           <p className="text-xl mb-2">تنبيه الطوارئ</p>
           <p className="text-white/80 mb-8">سيتم إرسال التنبيه تلقائياً</p>
           <Button
             onClick={handleEmergencyCancel}
-            className="bg-white text-destructive hover:bg-white/90 rounded-xl px-8"
+            className="bg-white text-destructive hover:bg-white/90 rounded-xl px-8 h-14 shadow-lg hover:shadow-xl transition-all"
           >
             إلغاء
           </Button>
@@ -215,29 +283,47 @@ ${window.location.origin}/share/demo123
         {/* Map overlay gradient */}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-[500]" />
 
+        {/* Live Now Indicator */}
+        {status === "sharing" && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[600] animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-full shadow-lg">
+              <div className="relative">
+                <div className="w-3 h-3 rounded-full bg-white animate-pulse" />
+                <div className="absolute inset-0 w-3 h-3 rounded-full bg-white animate-ping" />
+              </div>
+              <span className="font-medium text-sm">مباشر الآن</span>
+              <Radio className="w-4 h-4 animate-pulse" />
+            </div>
+          </div>
+        )}
+
         {/* Status cards overlay */}
         <div className="absolute bottom-4 left-4 right-4">
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-            <StatusCard
-              icon={<Shield className="w-4 h-4" />}
+            <EnhancedStatusCard
+              icon={<Shield className="w-5 h-5" />}
               label="حالة الأمان"
               value="نشط"
               isPrimary
+              isAnimating={status === "sharing"}
             />
-            <StatusCard
-              icon={<MapPin className="w-4 h-4" />}
+            <EnhancedStatusCard
+              icon={<MapPin className="w-5 h-5" />}
               label="المسافة"
-              value={`${distance} كم`}
+              value={`${distance.toFixed(1)} كم`}
+              isAnimating={status === "sharing"}
             />
-            <StatusCard
-              icon={<Navigation className="w-4 h-4" />}
+            <EnhancedStatusCard
+              icon={<Navigation className="w-5 h-5" />}
               label="السرعة"
               value={`${speed} كم/س`}
+              isAnimating={status === "sharing"}
             />
-            <StatusCard
-              icon={<Clock className="w-4 h-4" />}
-              label="المدة"
-              value={`${duration} د`}
+            <EnhancedStatusCard
+              icon={<Clock className="w-5 h-5" />}
+              label="الوصول"
+              value={`${eta} د`}
+              isAnimating={status === "sharing"}
             />
           </div>
         </div>
@@ -245,9 +331,20 @@ ${window.location.origin}/share/demo123
         {/* Emergency FAB */}
         <button
           onClick={handleEmergency}
-          className="absolute bottom-24 left-4 w-14 h-14 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg shadow-destructive/30 hover:scale-105 transition-transform z-20"
+          onMouseDown={handleEmergencyButtonDown}
+          onMouseUp={handleEmergencyButtonUp}
+          onMouseLeave={handleEmergencyButtonUp}
+          onTouchStart={handleEmergencyButtonDown}
+          onTouchEnd={handleEmergencyButtonUp}
+          className={cn(
+            "absolute bottom-24 left-4 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 z-20",
+            isEmergencyPressed 
+              ? "bg-destructive/80 scale-95 shadow-destructive/50" 
+              : "bg-destructive hover:scale-105 shadow-destructive/30 hover:shadow-destructive/50"
+          )}
         >
-          <AlertCircle className="w-6 h-6" />
+          <div className="absolute inset-0 rounded-full bg-destructive animate-ping opacity-30" />
+          <AlertCircle className="w-7 h-7 text-white relative z-10" />
         </button>
       </div>
 
@@ -258,15 +355,21 @@ ${window.location.origin}/share/demo123
 
         {/* Share Button */}
         {status === "idle" && (
-          <Card className="p-4 card-shadow bg-gradient-to-l from-primary to-teal-dark border-0 overflow-hidden relative">
-            {/* Decorative pattern */}
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute -top-4 -left-4 w-20 h-20 rounded-full bg-white" />
-              <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full bg-white" />
+          <Card className="p-4 card-shadow bg-gradient-to-l from-primary to-teal-dark border-0 overflow-hidden relative group">
+            {/* Animated decorative pattern */}
+            <div className="absolute inset-0 opacity-10 overflow-hidden">
+              <div className="absolute -top-4 -left-4 w-20 h-20 rounded-full bg-white animate-pulse" />
+              <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full bg-white animate-pulse" style={{ animationDelay: '0.5s' }} />
+              <div className="absolute top-1/2 left-1/3 w-8 h-8 rounded-full bg-white animate-pulse" style={{ animationDelay: '1s' }} />
+            </div>
+            
+            {/* Animated route line */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20 overflow-hidden">
+              <div className="h-full w-1/3 bg-white/50 rounded-full animate-[shimmer_2s_infinite]" />
             </div>
             
             <div className="flex items-center gap-4 relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Eye className="w-7 h-7 text-white" />
               </div>
               <div className="flex-1">
@@ -277,7 +380,7 @@ ${window.location.origin}/share/demo123
               </div>
               <Button
                 onClick={handleShareLocation}
-                className="bg-white text-primary hover:bg-white/90 rounded-xl px-6 shadow-lg"
+                className="bg-white text-primary hover:bg-white/90 rounded-xl px-6 shadow-lg hover:shadow-xl transition-all hover:scale-105"
               >
                 <Share2 className="w-4 h-4 ml-2" />
                 شارك
@@ -288,13 +391,22 @@ ${window.location.origin}/share/demo123
 
         {/* Active Sharing Status */}
         {status === "sharing" && (
-          <Card className="p-4 card-shadow border-2 border-primary bg-primary/5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+          <Card className="p-4 card-shadow border-2 border-primary bg-primary/5 overflow-hidden relative">
+            {/* Animated background */}
+            <div className="absolute inset-0 bg-gradient-to-l from-primary/5 to-transparent animate-pulse" />
+            
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center relative">
+                <div className="absolute inset-0 rounded-full bg-primary animate-ping opacity-30" />
                 <div className="w-4 h-4 rounded-full bg-white animate-pulse" />
               </div>
               <div className="flex-1">
-                <div className="font-bold text-primary text-lg">جاري المشاركة</div>
+                <div className="font-bold text-primary text-lg flex items-center gap-2">
+                  جاري المشاركة
+                  <Badge variant="secondary" className="bg-primary text-white animate-pulse">
+                    مباشر
+                  </Badge>
+                </div>
                 <div className="text-sm text-muted-foreground">
                   {selectedDuration === -1 ? "حتى الوصول" : `${selectedDuration} دقيقة`}
                 </div>
@@ -302,16 +414,47 @@ ${window.location.origin}/share/demo123
               <Button
                 onClick={handleStopSharing}
                 variant="destructive"
-                className="rounded-xl"
+                className="rounded-xl shadow-lg hover:shadow-xl transition-all"
               >
                 <StopCircle className="w-4 h-4 ml-2" />
                 إيقاف
               </Button>
             </div>
             
-            {/* Progress bar */}
-            <div className="mt-4 h-2 bg-primary/20 rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full w-2/3 animate-pulse" style={{ animationDuration: '2s' }} />
+            {/* Enhanced Progress bar */}
+            <div className="mt-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">تقدم المشاركة</span>
+                <span className="font-medium text-primary">{sharingProgress}%</span>
+              </div>
+              <div className="h-3 bg-primary/20 rounded-full overflow-hidden relative">
+                <div 
+                  className="h-full bg-gradient-to-l from-primary to-teal-light rounded-full transition-all duration-500 relative overflow-hidden"
+                  style={{ width: `${sharingProgress}%` }}
+                >
+                  {/* Shimmer effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_infinite]" />
+                </div>
+              </div>
+            </div>
+
+            {/* Live stats row */}
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="bg-white/50 rounded-xl p-3 text-center">
+                <Activity className="w-5 h-5 mx-auto text-primary mb-1" />
+                <div className="text-lg font-bold">{speed}</div>
+                <div className="text-xs text-muted-foreground">كم/س</div>
+              </div>
+              <div className="bg-white/50 rounded-xl p-3 text-center">
+                <Clock className="w-5 h-5 mx-auto text-primary mb-1" />
+                <div className="text-lg font-bold">{eta}</div>
+                <div className="text-xs text-muted-foreground">دقيقة</div>
+              </div>
+              <div className="bg-white/50 rounded-xl p-3 text-center">
+                <MapPin className="w-5 h-5 mx-auto text-primary mb-1" />
+                <div className="text-lg font-bold">{distance.toFixed(1)}</div>
+                <div className="text-xs text-muted-foreground">كم</div>
+              </div>
             </div>
           </Card>
         )}
@@ -319,9 +462,11 @@ ${window.location.origin}/share/demo123
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">
           <Link href="/contacts">
-            <Card className="p-4 card-shadow hover:shadow-lg transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-primary/20">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <Card className="p-4 card-shadow hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-primary/30 group overflow-hidden relative">
+              {/* Animated background on hover */}
+              <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-colors" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <Shield className="w-6 h-6 text-primary" />
                 </div>
                 <div>
@@ -331,9 +476,10 @@ ${window.location.origin}/share/demo123
               </div>
             </Card>
           </Link>
-          <Card className="p-4 card-shadow hover:shadow-lg transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-primary/20">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center">
+          <Card className="p-4 card-shadow hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-purple-300 group overflow-hidden relative">
+            <div className="absolute inset-0 bg-purple-50/0 group-hover:bg-purple-50/50 transition-colors" />
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Eye className="w-6 h-6 text-purple-600" />
               </div>
               <div>
@@ -345,26 +491,30 @@ ${window.location.origin}/share/demo123
         </div>
 
         {/* Notifications Banner */}
-        <Card className="p-4 card-shadow bg-yellow-50 border-yellow-200 border">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
+        <Card className="p-4 card-shadow bg-gradient-to-l from-yellow-50 to-orange-50 border-yellow-200 border overflow-hidden relative group hover:shadow-lg transition-all">
+          <div className="absolute inset-0 bg-gradient-to-l from-yellow-100/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center shrink-0 group-hover:animate-pulse">
               <Bell className="w-5 h-5 text-yellow-600" />
             </div>
             <div className="flex-1">
               <div className="font-medium text-yellow-800">فعّل الإشعارات</div>
               <div className="text-sm text-yellow-600">للحصول على تنبيهات الوصول</div>
             </div>
-            <Button size="sm" variant="outline" className="border-yellow-300 text-yellow-700 hover:bg-yellow-100">
+            <Button size="sm" variant="outline" className="border-yellow-300 text-yellow-700 hover:bg-yellow-100 hover:shadow-md transition-all">
               تفعيل
             </Button>
           </div>
         </Card>
 
         {/* Recent Activities */}
-        <Card className="p-4 card-shadow">
+        <Card className="p-4 card-shadow hover:shadow-lg transition-all">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-lg">آخر الأنشطة</h3>
-            <Link href="/history" className="text-sm text-primary hover:underline">عرض الكل</Link>
+            <h3 className="font-bold text-lg flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              آخر الأنشطة
+            </h3>
+            <Link href="/history" className="text-sm text-primary hover:underline hover:text-teal-dark transition-colors">عرض الكل</Link>
           </div>
           <div className="space-y-3">
             <ActivityItem
@@ -393,8 +543,10 @@ ${window.location.origin}/share/demo123
 
         {/* Stats Card */}
         <Link href="/history">
-          <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10 hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5">
-            <div className="flex items-center justify-around">
+          <Card className="p-4 card-shadow bg-gradient-to-r from-primary/5 to-teal-dark/5 border-primary/10 hover:shadow-xl transition-all cursor-pointer hover:-translate-y-1 group overflow-hidden relative">
+            {/* Decorative element */}
+            <div className="absolute top-0 left-0 w-24 h-24 bg-primary/10 rounded-full -translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
+            <div className="flex items-center justify-around relative z-10">
               <StatItem value="٢٤" label="رحلة" />
               <div className="w-px h-10 bg-border" />
               <StatItem value="١٥٦" label="كم" />
@@ -447,8 +599,11 @@ ${window.location.origin}/share/demo123
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex justify-center">
-              <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
-                <AlertCircle className="w-10 h-10 text-destructive" />
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-destructive/20 animate-ping" />
+                <div className="relative w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-destructive" />
+                </div>
               </div>
             </div>
             <p className="text-center text-muted-foreground">
@@ -457,14 +612,14 @@ ${window.location.origin}/share/demo123
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                className="flex-1 rounded-xl"
+                className="flex-1 rounded-xl hover:bg-muted transition-colors"
                 onClick={handleEmergencyCancel}
               >
                 إلغاء
               </Button>
               <Button
                 variant="destructive"
-                className="flex-1 rounded-xl"
+                className="flex-1 rounded-xl hover:shadow-lg transition-all"
                 onClick={handleEmergencyConfirm}
               >
                 تأكيد
@@ -473,7 +628,55 @@ ${window.location.origin}/share/demo123
           </div>
         </DialogContent>
       </Dialog>
+
+      <style jsx global>{`
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(200%); }
+        }
+      `}</style>
     </main>
+  );
+}
+
+// Enhanced Status Card Component
+function EnhancedStatusCard({
+  icon,
+  label,
+  value,
+  isPrimary,
+  isAnimating,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  isPrimary?: boolean;
+  isAnimating?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center p-3 rounded-xl min-w-[85px] transition-all duration-300",
+        isPrimary
+          ? "bg-gradient-to-br from-primary to-teal-dark text-primary-foreground shadow-lg"
+          : "bg-card card-shadow hover:shadow-lg hover:-translate-y-0.5"
+      )}
+    >
+      <div className={cn("mb-1 relative", isPrimary ? "text-primary-foreground" : "text-primary")}>
+        {isAnimating && (
+          <div className="absolute inset-0 animate-ping opacity-30">
+            {icon}
+          </div>
+        )}
+        {icon}
+      </div>
+      <span className={cn("text-xs", isPrimary ? "text-primary-foreground/80" : "text-muted-foreground")}>
+        {label}
+      </span>
+      <span className={cn("font-bold text-sm", isPrimary ? "text-primary-foreground" : "text-foreground")}>
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -491,21 +694,21 @@ function ActivityItem({
   color?: "primary" | "green" | "purple";
 }) {
   const colors = {
-    primary: "bg-primary/10 text-primary",
-    green: "bg-green-100 text-green-600",
-    purple: "bg-purple-100 text-purple-600",
+    primary: "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white",
+    green: "bg-green-100 text-green-600 group-hover:bg-green-500 group-hover:text-white",
+    purple: "bg-purple-100 text-purple-600 group-hover:bg-purple-500 group-hover:text-white",
   };
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer group">
-      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", colors[color])}>
+    <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-all cursor-pointer group hover:shadow-md">
+      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center transition-colors", colors[color])}>
         {icon}
       </div>
       <div className="flex-1">
         <div className="font-medium">{title}</div>
         <div className="text-xs text-muted-foreground">{time}</div>
       </div>
-      <Badge variant="secondary" className="bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+      <Badge variant="secondary" className="bg-primary/10 text-primary group-hover:bg-white group-hover:text-primary transition-colors">
         {distance}
       </Badge>
     </div>
