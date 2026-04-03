@@ -28,6 +28,8 @@ import {
   Heart,
   Briefcase,
   AlertCircle,
+  User,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -41,20 +43,21 @@ import {
 // SOS Status types
 type SOSStatus = "inactive" | "counting" | "active";
 
-// Mock emergency contacts
-const EMERGENCY_CONTACTS = [
-  { id: "1", name: "أحمد محمد", relation: "أخ", phone: "+201234567890", avatar: "👨", isFavorite: true },
-  { id: "2", name: "فاطمة علي", relation: "أم", phone: "+201234567891", avatar: "👩", isFavorite: true },
-  { id: "3", name: "محمد أحمد", relation: "أب", phone: "+201234567892", avatar: "👨", isFavorite: true },
-  { id: "4", name: "سارة أحمد", relation: "أخت", phone: "+201234567893", avatar: "👩", isFavorite: false },
-];
-
-// Mock location
+// Mock location (fallback)
 const MOCK_LOCATION = {
   lat: 30.0444,
   lng: 31.2357,
   name: "القاهرة، مصر",
 };
+
+// Contact type
+interface EmergencyContact {
+  id: string;
+  name: string;
+  relation: string;
+  phone: string;
+  isFavorite: boolean;
+}
 
 export default function SOSPage() {
   const [status, setStatus] = useState<SOSStatus>("inactive");
@@ -67,6 +70,8 @@ export default function SOSPage() {
   const [sharingLink, setSharingLink] = useState("");
   const [activeDuration, setActiveDuration] = useState(0);
   const [notifiedContacts, setNotifiedContacts] = useState<string[]>([]);
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
   const audioContextRef = useRef<AudioContext | null>(null);
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -116,6 +121,31 @@ export default function SOSPage() {
     };
 
     getBattery();
+  }, []);
+
+  // Fetch emergency contacts
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const response = await fetch('/api/contacts');
+        const data = await response.json();
+        if (data.success && data.contacts) {
+          setContacts(data.contacts.map((c: { id: string; name: string; relation: string; phone: string; isEmergency: boolean }) => ({
+            id: c.id,
+            name: c.name,
+            relation: c.relation,
+            phone: c.phone,
+            isFavorite: c.isEmergency,
+          })));
+        }
+      } catch {
+        // Failed to fetch contacts
+      } finally {
+        setLoadingContacts(false);
+      }
+    };
+
+    fetchContacts();
   }, []);
 
   // Play alert sound
@@ -176,14 +206,19 @@ export default function SOSPage() {
     setSharingLink(link);
 
     // Simulate notifying contacts
+    const favoriteContacts = contacts.filter((c) => c.isFavorite);
     setTimeout(() => {
-      setNotifiedContacts(EMERGENCY_CONTACTS.filter((c) => c.isFavorite).map((c) => c.id));
-      toast.success(`تم إرسال تنبيه الطوارئ إلى ${toArabicNumerals(EMERGENCY_CONTACTS.filter((c) => c.isFavorite).length)} جهة اتصال`);
+      setNotifiedContacts(favoriteContacts.map((c) => c.id));
+      if (favoriteContacts.length > 0) {
+        toast.success(`تم إرسال تنبيه الطوارئ إلى ${toArabicNumerals(favoriteContacts.length)} جهة اتصال`);
+      } else {
+        toast.warning("لا توجد جهات اتصال للإبلاغ");
+      }
     }, 1000);
 
     // Simulate ETA
     setEta(Math.floor(Math.random() * 10) + 5);
-  }, [playAlertSound, startVibration]);
+  }, [playAlertSound, startVibration, contacts]);
 
   // Handle SOS button press
   const handleSOSPress = () => {
@@ -481,41 +516,60 @@ export default function SOSPage() {
           </div>
 
           <div className="space-y-3">
-            {EMERGENCY_CONTACTS.map((contact) => (
-              <div
-                key={contact.id}
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-xl transition-all",
-                  notifiedContacts.includes(contact.id)
-                    ? "bg-green-50 border border-green-200"
-                    : "bg-muted/50 hover:bg-muted"
-                )}
-              >
-                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-2xl">
-                  {contact.avatar}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium flex items-center gap-2">
-                    {contact.name}
-                    {contact.isFavorite && (
-                      <Heart className="w-4 h-4 text-red-500 fill-current" />
-                    )}
-                    {notifiedContacts.includes(contact.id) && (
-                      <Check className="w-4 h-4 text-green-500" />
-                    )}
-                  </div>
-                  <div className="text-sm text-muted-foreground">{contact.relation}</div>
-                </div>
-                <Button
-                  onClick={() => handleCall(contact.phone, contact.name)}
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full border-green-300 hover:bg-green-50 hover:border-green-500"
-                >
-                  <Phone className="w-4 h-4 text-green-600" />
-                </Button>
+            {loadingContacts ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 text-primary animate-spin" />
               </div>
-            ))}
+            ) : contacts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                  <Users className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground mb-4">لا توجد جهات اتصال</p>
+                <Link href="/emergency-contacts">
+                  <Button size="sm" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    إضافة جهة اتصال
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl transition-all",
+                    notifiedContacts.includes(contact.id)
+                      ? "bg-green-50 border border-green-200"
+                      : "bg-muted/50 hover:bg-muted"
+                  )}
+                >
+                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <User className="w-6 h-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium flex items-center gap-2">
+                      {contact.name}
+                      {contact.isFavorite && (
+                        <Heart className="w-4 h-4 text-red-500 fill-current" />
+                      )}
+                      {notifiedContacts.includes(contact.id) && (
+                        <Check className="w-4 h-4 text-green-500" />
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{contact.relation}</div>
+                  </div>
+                  <Button
+                    onClick={() => handleCall(contact.phone, contact.name)}
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full border-green-300 hover:bg-green-50 hover:border-green-500"
+                  >
+                    <Phone className="w-4 h-4 text-green-600" />
+                  </Button>
+                </div>
+              ))
+            )}
           </div>
         </Card>
 

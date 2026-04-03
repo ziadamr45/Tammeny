@@ -1133,19 +1133,42 @@ The map box was not properly positioned and would ruin the app layout.
 - Consistent z-index hierarchy across all pages
 - All 4 files using DynamicMap updated
 - ESLint passes with no errors
-6. ✅ **Dashboard Page** - Was showing mock data (156 trips) - **FIXED**
 
-### Issues Found:
-1. **Dashboard had mock data** - Showed fake stats (156 trips, 842.5 km)
+---
+## Task ID: QA Review & Bug Fixes (Round 16)
+**Date**: 2025-04-04
+**Status**: ✅ Completed
 
-### Fixes Applied:
-1. ✅ **Fixed Dashboard Page** - Added useAuth, fetches real stats, shows empty state
-2. ✅ **Verified All Protected Pages** - All require authentication
+### Issues Found via agent-browser Testing:
+1. ✅ **Chinese characters in share page** - "起点" was shown instead of Arabic "نقطة البداية"
+2. ✅ **Mock contacts in SOS page** - Page showed fake contacts (أحمد محمد, فاطمة علي, etc.)
 
-### Files Modified:
-- /src/app/dashboard/page.tsx - Complete rewrite with real data
+### Changes Made:
+1. ✅ Fixed Share Page (`/src/app/share/[id]/page.tsx`):
+   - Replaced Chinese "起点" with Arabic "نقطة البداية"
+   - Progress section now shows correct Arabic text
+
+2. ✅ Fixed SOS Page (`/src/app/sos/page.tsx`):
+   - Removed hardcoded EMERGENCY_CONTACTS array
+   - Added EmergencyContact interface
+   - Added contacts state and loading state
+   - Added useEffect to fetch contacts from `/api/contacts` API
+   - Updated handleActivate to use contacts state
+   - Added empty state UI when no contacts exist
+   - Added loading spinner while fetching contacts
+   - Added User and Plus icon imports
+
+3. ✅ Enhanced Register Page (`/src/app/register/page.tsx`):
+   - Added password strength indicator with visual bars
+   - Added password requirement checklist
+   - Shows: ٦ أحرف على الأقل, حرف كبير, رقم, رمز خاص
+   - Color-coded strength: ضعيفة (red), متوسطة (yellow), جيدة (blue), قوية (green)
+   - Added Check and X icons for requirement status
 
 ### Stage Summary:
-- All mock data removed from Dashboard
-- All protected pages require authentication
+- All Chinese characters replaced with proper Arabic
+- SOS page now fetches real contacts from API
+- Empty state shows helpful UI for adding contacts
+- Password strength indicator improves UX
+- All tests pass with agent-browser
 - ESLint passes with no errors

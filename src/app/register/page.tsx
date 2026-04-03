@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, User, Mail, Lock, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Shield, User, Mail, Lock, Eye, EyeOff, ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,34 @@ export default function RegisterPage() {
     email: "",
     password: "",
   });
+
+  // Password strength calculation
+  const getPasswordStrength = (password: string) => {
+    let strength = 0;
+    if (password.length >= 6) strength++;
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+    return strength;
+  };
+
+  const passwordStrength = getPasswordStrength(formData.password);
+  const getPasswordStrengthLabel = () => {
+    if (formData.password.length === 0) return "";
+    if (passwordStrength <= 1) return "ضعيفة";
+    if (passwordStrength <= 2) return "متوسطة";
+    if (passwordStrength <= 3) return "جيدة";
+    return "قوية";
+  };
+
+  const getPasswordStrengthColor = () => {
+    if (formData.password.length === 0) return "bg-muted";
+    if (passwordStrength <= 1) return "bg-red-500";
+    if (passwordStrength <= 2) return "bg-yellow-500";
+    if (passwordStrength <= 3) return "bg-blue-500";
+    return "bg-green-500";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,6 +173,42 @@ export default function RegisterPage() {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              
+              {/* Password Strength Indicator */}
+              {formData.password.length > 0 && (
+                <div className="space-y-2 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">قوة كلمة المرور</span>
+                    <span className={cn(
+                      "text-xs font-medium",
+                      passwordStrength <= 1 ? "text-red-500" :
+                      passwordStrength <= 2 ? "text-yellow-500" :
+                      passwordStrength <= 3 ? "text-blue-500" : "text-green-500"
+                    )}>
+                      {getPasswordStrengthLabel()}
+                    </span>
+                  </div>
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map((level) => (
+                      <div
+                        key={level}
+                        className={cn(
+                          "h-1 flex-1 rounded-full transition-all",
+                          passwordStrength >= level ? getPasswordStrengthColor() : "bg-muted"
+                        )}
+                      />
+                    ))}
+                  </div>
+                  
+                  {/* Password Requirements */}
+                  <div className="grid grid-cols-2 gap-1 mt-2">
+                    <PasswordRequirement met={formData.password.length >= 6} text="٦ أحرف على الأقل" />
+                    <PasswordRequirement met={/[A-Z]/.test(formData.password)} text="حرف كبير" />
+                    <PasswordRequirement met={/[0-9]/.test(formData.password)} text="رقم" />
+                    <PasswordRequirement met={/[^A-Za-z0-9]/.test(formData.password)} text="رمز خاص" />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Gender Selection */}
@@ -233,6 +297,22 @@ function TrustBadge({ icon, title }: { icon: React.ReactNode; title: string }) {
     <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-primary/5">
       <div className="text-primary">{icon}</div>
       <span className="text-xs text-center text-muted-foreground">{title}</span>
+    </div>
+  );
+}
+
+function PasswordRequirement({ met, text }: { met: boolean; text: string }) {
+  return (
+    <div className={cn(
+      "flex items-center gap-1 text-xs transition-colors",
+      met ? "text-green-600" : "text-muted-foreground"
+    )}>
+      {met ? (
+        <Check className="w-3 h-3" />
+      ) : (
+        <X className="w-3 h-3" />
+      )}
+      <span>{text}</span>
     </div>
   );
 }

@@ -526,7 +526,7 @@ export default function ViewerPage() {
                 </div>
               </div>
               <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                <span>起点</span>
+                <span>نقطة البداية</span>
                 <span>{session.destination.name}</span>
               </div>
             </div>
