@@ -9,7 +9,7 @@ import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
 import { QuickShareWidget, QuickShareCompact } from "@/components/tamenny/quick-share-widget";
 import { StatusWidget, LiveStats } from "@/components/tamenny/status-widget";
-import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, RefreshCw, ChevronDown, Home, Building2, Sparkles, TrendingUp, Timer, Compass, Gauge, Crosshair, Satellite, Wifi, Battery, BatteryLow, Signal } from "lucide-react";
+import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, ChevronDown, Home, Building2, Sparkles, TrendingUp, Timer, Compass, Gauge, Crosshair, Satellite, Wifi, Battery, BatteryLow, Signal } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -81,13 +81,10 @@ export default function HomePage() {
   const [animateMarker, setAnimateMarker] = useState(false);
   const [showRoute, setShowRoute] = useState(false);
   const [waypoints, setWaypoints] = useState<{ lat: number; lng: number; name?: string }[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(true); // Default to true for SSR consistency
   const mapRef = useRef<HTMLDivElement>(null);
-  const touchStartRef = useRef<number | null>(null);
 
   // Calculate route info when destination is set
   const routeInfo = destination ? {
@@ -277,44 +274,6 @@ export default function HomePage() {
     return () => clearTimeout(timer);
   }, [countdown]);
 
-  // Pull to refresh simulation
-  useEffect(() => {
-    const handleTouchStart = (e: TouchEvent) => {
-      if (window.scrollY === 0) {
-        touchStartRef.current = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (touchStartRef.current !== null && window.scrollY === 0) {
-        const pull = e.touches[0].clientY - touchStartRef.current;
-        setPullDistance(Math.max(0, Math.min(pull, 100)));
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (pullDistance > 60) {
-        setIsRefreshing(true);
-        setTimeout(() => {
-          setIsRefreshing(false);
-          toast.success("تم التحديث!");
-        }, 1500);
-      }
-      setPullDistance(0);
-      touchStartRef.current = null;
-    };
-
-    window.addEventListener("touchstart", handleTouchStart);
-    window.addEventListener("touchmove", handleTouchMove);
-    window.addEventListener("touchend", handleTouchEnd);
-
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-      window.removeEventListener("touchend", handleTouchEnd);
-    };
-  }, [pullDistance]);
-
   const handleShareLocation = async () => {
     setShowShareModal(true);
   };
@@ -476,27 +435,6 @@ ${window.location.origin}/share/demo123
       {/* Offline Indicator */}
       <OfflineIndicator />
 
-      {/* Pull to Refresh Indicator */}
-      {(pullDistance > 0 || isRefreshing) && (
-        <div
-          className="fixed top-0 left-0 right-0 z-[60] flex justify-center pt-2 pointer-events-none"
-          style={{ transform: `translateY(${Math.min(pullDistance * 0.5, 40)}px)` }}
-        >
-          <div className={cn(
-            "flex flex-col items-center gap-1 transition-all",
-            isRefreshing && "animate-spin"
-          )}>
-            <RefreshCw className={cn(
-              "w-6 h-6 text-primary transition-all",
-              pullDistance > 60 && "text-green-500"
-            )} />
-            <span className="text-xs text-muted-foreground">
-              {isRefreshing ? "جاري التحديث..." : pullDistance > 60 ? "اسحب للتحديث" : "اسحب للأسفل"}
-            </span>
-          </div>
-        </div>
-      )}
-
       <Header />
 
       {/* Emergency Countdown Overlay */}
@@ -535,17 +473,7 @@ ${window.location.origin}/share/demo123
           onRouteComplete={handleRouteComplete}
           className="absolute inset-0 h-full w-full"
         />
-        
-        {/* Location searching indicator */}
-        {isLocating && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 animate-slide-up">
-            <div className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full shadow-lg text-sm">
-              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>جاري تحديث الموقع...</span>
-            </div>
-          </div>
-        )}
-        
+
         {/* Map overlay gradient */}
         <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background via-background/50 to-transparent pointer-events-none z-10" />
 
