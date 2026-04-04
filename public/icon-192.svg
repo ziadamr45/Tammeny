@@ -1,0 +1,38 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pinGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4FD1C5"/>
+      <stop offset="100%" stop-color="#2CB1BC"/>
+    </linearGradient>
+    <linearGradient id="heartGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFD166"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="192" height="192" rx="32" fill="#F5F7F9"/>
+  
+  <!-- Waves -->
+  <path d="M60 36 Q96 19 132 36" stroke="#F4B942" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M71 49 Q96 36 121 49" stroke="#F4B942" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- Pin -->
+  <path d="M96 49 C131 49 154 88 96 150 C38 88 61 49 96 49Z" fill="url(#pinGrad)"/>
+  
+  <!-- Shield -->
+  <path d="M96 66 L123 79 L117 114 L96 133 L75 114 L69 79Z" fill="#2CB1BC"/>
+  
+  <!-- Heart -->
+  <path d="M96 111 C84 98 71 98 71 111 C71 124 96 137 96 137 C96 137 121 124 121 111 C121 98 108 98 96 111Z" fill="url(#heartGrad)"/>
+  
+  <!-- Hand -->
+  <path d="M73 123 Q90 105 114 126 Q97 141 81 131Z" fill="#2CB1BC" opacity="0.8"/>
+  
+  <!-- Lock -->
+  <rect x="75" y="73" width="14" height="12" rx="3" fill="#F4B942"/>
+  <path d="M79 73 L79 67 C79 63 87 63 87 67 L87 73" stroke="#F4B942" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  
+  <!-- Ripple -->
+  <ellipse cx="96" cy="154" rx="30" ry="6" fill="#4FD1C5" opacity="0.3"/>
+</svg>

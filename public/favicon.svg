@@ -1,0 +1,21 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pinGrad32" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4FD1C5"/>
+      <stop offset="100%" stop-color="#2CB1BC"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#F5F7F9"/>
+  
+  <!-- Pin -->
+  <path d="M16 4 C24 4 28 12 16 28 C4 12 8 4 16 4Z" fill="url(#pinGrad32)"/>
+  
+  <!-- Heart -->
+  <path d="M16 20 C13 16 10 16 10 20 C10 24 16 28 16 28 C16 28 22 24 22 20 C22 16 19 16 16 20Z" fill="#FFD166"/>
+  
+  <!-- Lock -->
+  <rect x="12" y="8" width="5" height="4" rx="1" fill="#F4B942"/>
+  <path d="M13.5 8 L13.5 6 C13.5 5 15.5 5 15.5 6 L15.5 8" stroke="#F4B942" stroke-width="1" fill="none"/>
+</svg>

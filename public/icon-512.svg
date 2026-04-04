@@ -1,0 +1,45 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pinGrad512" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4FD1C5"/>
+      <stop offset="100%" stop-color="#2CB1BC"/>
+    </linearGradient>
+    <linearGradient id="heartGrad512" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE066"/>
+      <stop offset="100%" stop-color="#FFD166"/>
+    </linearGradient>
+    <filter id="shadow512" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="rgba(0,0,0,0.08)"/>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="#F5F7F9"/>
+  
+  <!-- Waves -->
+  <path d="M160 95 Q256 50 352 95" stroke="#F4B942" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <path d="M190 130 Q256 95 322 130" stroke="#F4B942" stroke-width="7" fill="none" stroke-linecap="round"/>
+  
+  <!-- Pin -->
+  <g filter="url(#shadow512)">
+    <path d="M256 130 C365 130 410 235 256 400 C102 235 147 130 256 130Z" fill="url(#pinGrad512)"/>
+  </g>
+  
+  <!-- Shield -->
+  <path d="M256 175 L330 210 L315 305 L256 355 L197 305 L182 210Z" fill="#2CB1BC"/>
+  
+  <!-- Heart -->
+  <path d="M256 295 C225 260 190 260 190 295 C190 330 256 365 256 365 C256 365 322 330 322 295 C322 260 287 260 256 295Z" fill="url(#heartGrad512)"/>
+  
+  <!-- Hand -->
+  <path d="M195 325 Q240 280 305 335 Q260 375 215 350Z" fill="#2CB1BC" opacity="0.8"/>
+  
+  <!-- Lock -->
+  <rect x="200" y="195" width="36" height="32" rx="8" fill="#F4B942"/>
+  <path d="M210 195 L210 180 C210 170 226 170 226 180 L226 195" stroke="#F4B942" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <circle cx="218" cy="208" r="5" fill="#2CB1BC"/>
+  <rect x="216" y="208" width="4" height="10" rx="2" fill="#2CB1BC"/>
+  
+  <!-- Ripple -->
+  <ellipse cx="256" cy="410" rx="80" ry="16" fill="#4FD1C5" opacity="0.25"/>
+</svg>

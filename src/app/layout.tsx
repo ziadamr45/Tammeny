@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   keywords: ["تتبع", "موقع", "أمان", "خصوصية", "مشاركة", "GPS"],
   authors: [{ name: "طمنّي" }],
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-512.png",
+    icon: "/favicon.svg",
+    apple: "/icon-192.svg",
   },
   manifest: "/manifest.json",
   appleWebApp: {
@@ -33,11 +33,20 @@ export const metadata: Metadata = {
     description: "تتبع الموقع في الوقت الحقيقي بأمان وخصوصية تامة",
     type: "website",
     locale: "ar_EG",
+    images: [
+      {
+        url: "/logo-light.svg",
+        width: 512,
+        height: 512,
+        alt: "طمنّي - Tamenny Logo",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "طمنّي - Tamenny",
     description: "تتبع الموقع في الوقت الحقيقي بأمان وخصوصية تامة",
+    images: ["/logo-light.svg"],
   },
 };
 
