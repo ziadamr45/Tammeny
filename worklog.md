@@ -481,3 +481,29 @@ Make sure to set these in Vercel Dashboard > Project Settings > Environment Vari
 3. ✅ Help video tutorials - Opens YouTube links
 4. ✅ Help social media - Opens social media links
 5. ✅ Emergency Contacts test alert - Real API call
+
+---
+
+## Phase 8: Vercel Build Fix (Completed 2025-01-16)
+
+### Build Error: Prisma Model Name Mismatch ✅
+**Problem:** Build failed with TypeScript error:
+```
+Type error: Property 'location' does not exist on type 'PrismaClient'
+```
+
+**Root Cause:** 
+- In `/api/trips/[id]/route.ts`, line 39 used `db.location.deleteMany`
+- But the Prisma model is `LocationPoint` (maps to `location_points`)
+- Correct Prisma client accessor is `db.locationPoint`
+
+**Fix:**
+- Changed `db.location.deleteMany` → `db.locationPoint.deleteMany`
+- Build now succeeds
+
+---
+
+## Commit
+- Commit: 7c00256
+- Message: "Fix Prisma model name: location -> locationPoint in trips API"
+- Files changed: 3 files, 8 insertions, 2 deletions
