@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSavedLocation } from "@/hooks/use-saved-location";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
+import { SplashScreen } from "@/components/tamenny/splash-screen";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
@@ -680,19 +681,16 @@ ${data.shareUrl}
     return "ضعيف";
   };
 
-  // Show loading spinner while checking auth
+  // Show splash screen while checking auth
   if (!authChecked) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">جاري التحميل...</p>
-        </div>
-      </div>
-    );
+    return <SplashScreen isVisible={true} />;
   }
 
   return (
+    <>
+      {/* Splash Screen - for page transitions */}
+      <SplashScreen isVisible={!authChecked} />
+    
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
       {/* Animated Background Gradient */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -1274,6 +1272,7 @@ ${data.shareUrl}
         </DialogContent>
       </Dialog>
     </main>
+    </>
   );
 }
 

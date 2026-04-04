@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface SplashScreenProps {
@@ -12,9 +12,11 @@ interface SplashScreenProps {
 export function SplashScreen({ onComplete, duration, isVisible = true }: SplashScreenProps) {
   const [show, setShow] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const prevIsVisible = useRef(isVisible);
+  const hasHidden = useRef(false); // Track if we've already hidden
 
-  // Auto-hide mode with duration
   useEffect(() => {
+    // Auto-hide mode with duration
     if (duration) {
       const fadeOutTimer = setTimeout(() => {
         setIsFadingOut(true);
@@ -34,22 +36,30 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
 
   // Controlled mode - hide when isVisible becomes false
   useEffect(() => {
-    // Only run if no duration is set (controlled mode)
-    if (duration) return;
-
+    // Skip if already hidden
+    if (hasHidden.current) return;
+    
+    // Hide when isVisible becomes false
     if (!isVisible && show && !isFadingOut) {
-      // Start fade out immediately
-      setIsFadingOut(true);
-
-      // Then hide completely after animation
-      const timer = setTimeout(() => {
+      hasHidden.current = true;
+      
+      // Use setTimeout to defer state update
+      const fadeTimer = setTimeout(() => {
+        setIsFadingOut(true);
+      }, 0);
+      
+      const completeTimer = setTimeout(() => {
         setShow(false);
         onComplete?.();
       }, 500);
-
-      return () => clearTimeout(timer);
+      
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(completeTimer);
+      };
     }
-  }, [isVisible, show, isFadingOut, onComplete, duration]);
+    prevIsVisible.current = isVisible;
+  }, [isVisible, show, isFadingOut, onComplete]);
 
   if (!show) return null;
 
@@ -59,7 +69,7 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
         "fixed inset-0 z-[100] flex flex-col items-center justify-center",
         "bg-gradient-to-b from-[#F5F7F9] to-[#E8F4F4] dark:from-[#0B1F2A] dark:to-[#0D2D3A]",
         "transition-opacity duration-500",
-        isFadingOut ? "opacity-0 pointer-events-none" : "opacity-100"
+        isFadingOut ? "opacity-0" : "opacity-100"
       )}
     >
       {/* Animated Logo Container */}
@@ -73,7 +83,7 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-28 h-28 rounded-full bg-primary/30 animate-ping" style={{ animationDuration: "2s", animationDelay: "0.3s" }} />
           </div>
-
+          
           {/* Main Logo Icon */}
           <div className="relative z-10 animate-bounce" style={{ animationDuration: "2s", animationTimingFunction: "ease-in-out" }}>
             <svg
@@ -149,9 +159,9 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
           >
             طمنّي
           </h1>
-
+          
           {/* Tagline with Fade In Animation */}
-          <p
+          <p 
             className="text-base text-muted-foreground animate-in fade-in duration-700"
             style={{ animationDelay: "0.6s", animationFillMode: "both" }}
           >
@@ -160,7 +170,7 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
         </div>
 
         {/* Loading Indicator */}
-        <div
+        <div 
           className="mt-8 flex gap-1.5 animate-in fade-in duration-500"
           style={{ animationDelay: "0.9s", animationFillMode: "both" }}
         >
