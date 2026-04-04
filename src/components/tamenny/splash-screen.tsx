@@ -69,7 +69,7 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
         "fixed inset-0 z-[100] flex flex-col items-center justify-center",
         "bg-gradient-to-b from-[#F5F7F9] to-[#E8F4F4] dark:from-[#0B1F2A] dark:to-[#0D2D3A]",
         "transition-opacity duration-500",
-        isFadingOut ? "opacity-0" : "opacity-100"
+        isFadingOut ? "opacity-0 pointer-events-none" : "opacity-100"
       )}
     >
       {/* Animated Logo Container */}
