@@ -26,6 +26,12 @@ model User {
   lastLocationData    String?   // Encrypted JSON: { lat, lng, name, timestamp, accuracy }
   lastLocationUpdated DateTime? // When the location was last updated
   
+  // Settings
+  stealthMode       Boolean   @default(false) // وضع الصمت
+  darkMode          Boolean   @default(false) // الوضع الليلي
+  batterySaver      Boolean   @default(false) // توفير البطارية
+  notificationsEnabled Boolean @default(true)
+  
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -40,6 +46,7 @@ model User {
   safeZones       SafeZone[]
   notifications   Notification[]
   tripHistory     TripHistory[]
+  arrivedSafe     ArrivedSafe[]
 
   @@map("users")
 }
@@ -224,6 +231,11 @@ model SafeZone {
   color           String    @default("safe") // "safe" | "caution"
   notifyOnEnter   Boolean   @default(true)
   notifyOnExit    Boolean   @default(true)
+  
+  // تنبيه خروج الأطفال
+  childAlertEnabled Boolean   @default(false)
+  childName       String?   // اسم الطفل
+  
   createdAt       DateTime  @default(now())
 
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -274,4 +286,29 @@ model TripHistory {
 
   @@index([userId])
   @@map("trip_history")
+}
+
+// وصلت سالم - Arrived Safe Check-in
+model ArrivedSafe {
+  id            String    @id @default(cuid())
+  userId        String
+  sessionId     String?   // Related sharing session if any
+  
+  // Location
+  latitude      Float
+  longitude     Float
+  locationName  String?
+  
+  // Notification status
+  smsSent       Boolean   @default(false)
+  whatsappSent  Boolean   @default(false)
+  notifiedContacts String? // JSON array of contacted people
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("arrived_safe")
 }

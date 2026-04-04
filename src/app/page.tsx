@@ -9,7 +9,7 @@ import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
 import { QuickShareWidget, QuickShareCompact } from "@/components/tamenny/quick-share-widget";
 import { StatusWidget, LiveStats } from "@/components/tamenny/status-widget";
-import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, ChevronDown, Home, Building2, Sparkles, TrendingUp, Timer, Compass, Gauge, Crosshair, Satellite, Wifi, Battery, BatteryLow, Signal } from "lucide-react";
+import { MapPin, Navigation, Clock, Shield, Eye, AlertTriangle, StopCircle, Share2, Phone, AlertCircle, Bell, User, Layers, Locate, Maximize2, Radio, Heart, Zap, Activity, Route, X, Plus, Check, ChevronDown, Home, Building2, Sparkles, TrendingUp, Timer, Compass, Gauge, Crosshair, Satellite, Wifi, Battery, BatteryLow, Signal, MessageCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -385,6 +385,26 @@ ${window.location.origin}/share/demo123
     toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
   };
 
+  // WhatsApp share handler
+  const handleWhatsAppShare = () => {
+    if (!location) {
+      toast.error("لم يتم تحديد موقعك بعد");
+      return;
+    }
+
+    const shareLink = `${window.location.origin}/share/demo123`;
+    const message = `أنا مشارك موقعي معاك على طمنّي 📍
+موقعي الحالي: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
+تابعني لحظة بلحظة من هنا 👇
+${shareLink}
+
+حمّل تطبيق طمنّي للأمان 🛡️`;
+
+    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+    toast.success("جاري فتح واتساب...");
+  };
+
   const durationOptions = [
     { value: 5, label: "٥ دقائق", description: "مشاركة سريعة" },
     { value: 30, label: "٣٠ دقيقة", description: "رحلة قصيرة" },
@@ -758,6 +778,25 @@ ${window.location.origin}/share/demo123
               </div>
             </Card>
           </Link>
+          {/* WhatsApp Share Button */}
+          <div className="col-span-2 animate-slide-up delay-400">
+            <Card 
+              className="p-4 card-shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer hover:-translate-y-1 border border-transparent hover:border-green-300 group overflow-hidden relative bg-gradient-to-l from-green-50 to-emerald-50/50"
+              onClick={handleWhatsAppShare}
+            >
+              <div className="absolute inset-0 bg-gradient-to-l from-green-100/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-center gap-3 relative z-10">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-green-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                  <MessageCircle className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-bold text-green-700">أرسل موقعي على واتساب</div>
+                  <div className="text-xs text-green-600">شارك موقعك مباشرة مع أهلك</div>
+                </div>
+                <Share2 className="w-5 h-5 text-green-500 group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Card>
+          </div>
         </div>
 
         {/* Live Stats (when sharing) */}

@@ -1574,3 +1574,104 @@ Task: Fix server startup issue and perform QA testing
 - Screenshot saved: /home/z/my-project/qa-screenshot.png
 
 ---
+
+---
+## Task ID: New-Features-Round-14
+**Date**: 2025-04-04
+**Status**: ✅ Major Features Implemented
+
+### New Features Implemented:
+
+#### 1. ✅ وصلت سالم (Arrived Safe) Feature
+- **Page**: `/arrived`
+- **API**: `/api/arrived-safe/route.ts`
+- **Database**: Added `ArrivedSafe` model to Prisma schema
+- **Features**:
+  - Big "وصلت سالم" button for quick check-in
+  - Location capture with reverse geocoding
+  - SMS/WhatsApp notification options
+  - History of arrived safe check-ins
+  - Integration with emergency contacts
+
+#### 2. ✅ QR Code للمشاركة
+- **Page**: `/share` (enhanced)
+- **Library**: `qrcode.react`
+- **Features**:
+  - Generate QR code from share link
+  - Download QR as PNG image
+  - Share QR dialog with logo
+  - Works without internet
+
+#### 3. ✅ WhatsApp Business Integration
+- **Page**: `/` (home page)
+- **Features**:
+  - "أرسل موقعي على واتساب" button
+  - Opens wa.me with pre-filled message
+  - Includes current location and share link
+  - Green themed card in quick actions
+
+#### 4. ✅ صفحة المقارنة مع Life360
+- **Page**: `/compare`
+- **Features**:
+  - Comparison table with Life360 and Google Maps
+  - 12 feature comparisons
+  - Arabic numerals throughout
+  - Advantages highlighting
+  - User statistics
+  - CTA section
+
+### Database Schema Changes:
+```prisma
+// User model additions:
+stealthMode       Boolean   @default(false)
+darkMode          Boolean   @default(false)
+batterySaver      Boolean   @default(false)
+notificationsEnabled Boolean @default(true)
+
+// SafeZone model additions:
+childAlertEnabled Boolean   @default(false)
+childName         String?
+
+// New model:
+model ArrivedSafe {
+  id            String    @id @default(cuid())
+  userId        String
+  sessionId     String?
+  latitude      Float
+  longitude     Float
+  locationName  String?
+  smsSent       Boolean   @default(false)
+  whatsappSent  Boolean   @default(false)
+  notifiedContacts String?
+  createdAt     DateTime  @default(now())
+  user          User      @relation(...)
+}
+```
+
+### Files Created:
+- `/src/app/arrived/page.tsx` - Arrived Safe page
+- `/src/app/api/arrived-safe/route.ts` - API endpoint
+- `/src/app/compare/page.tsx` - Comparison page
+
+### Files Modified:
+- `/prisma/schema.prisma` - Added new models and fields
+- `/src/app/share/page.tsx` - Added QR Code feature
+- `/src/app/page.tsx` - Added WhatsApp share button
+
+### Packages Installed:
+- `qrcode.react` - For QR code generation
+
+### Technical Notes:
+- All text in Arabic RTL
+- Uses toArabicNumerals for all numbers
+- Teal theme (#0D7377) maintained
+- All pages responsive
+- ESLint passes
+
+### Remaining Tasks:
+1. ⬜ وضع الصمت Stealth في Settings
+2. ⬜ تنبيه خروج الأطفال في Safe Zones
+3. ⬜ الوضع الليلي المحسن مع Dark Map
+4. ⬜ مؤشر جودة النت في Header
+
+---

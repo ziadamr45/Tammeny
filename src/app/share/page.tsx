@@ -29,11 +29,14 @@ import {
   Map,
   Target,
   Loader2,
+  QrCode,
+  Download,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { QRCodeSVG } from "qrcode.react";
 
 const DURATION_OPTIONS = [
   { value: 5, label: "٥ دقائق", description: "مشاركة سريعة", icon: Zap, color: "bg-yellow-500" },
@@ -58,6 +61,8 @@ export default function SharePage() {
   const [copied, setCopied] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const qrRef = useRef<HTMLDivElement>(null);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -566,6 +571,100 @@ ${shareLink}
                 مشاركة
               </Button>
             </div>
+
+            {/* QR Code Button */}
+            <Button
+              onClick={() => {
+                setShowSuccessModal(false);
+                setShowQRModal(true);
+              }}
+              variant="outline"
+              className="w-full rounded-xl h-12 border-primary/30 hover:bg-primary/5"
+            >
+              <QrCode className="w-5 h-5 ml-2 text-primary" />
+              شارك بـ QR Code
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* QR Code Modal */}
+      <Dialog open={showQRModal} onOpenChange={setShowQRModal}>
+        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-center text-lg">
+              مشاركة بـ QR Code
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* QR Code */}
+            <div className="flex items-center justify-center">
+              <div 
+                ref={qrRef}
+                className="bg-white p-4 rounded-2xl shadow-lg"
+              >
+                <QRCodeSVG
+                  value={shareLink}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                  imageSettings={{
+                    src: "/icon-192.png",
+                    x: undefined,
+                    y: undefined,
+                    height: 40,
+                    width: 40,
+                    excavate: true,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-primary/10 rounded-xl p-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                امسح الكود بواسطة كاميرا الهاتف للمتابعة
+              </p>
+            </div>
+
+            {/* Link preview */}
+            <div className="bg-secondary rounded-xl p-3 border-2 border-dashed border-primary/30">
+              <p className="text-xs text-muted-foreground text-center break-all">
+                {shareLink}
+              </p>
+            </div>
+
+            {/* Download Button */}
+            <Button
+              onClick={() => {
+                // Download QR as image
+                const svg = qrRef.current?.querySelector('svg');
+                if (svg) {
+                  const svgData = new XMLSerializer().serializeToString(svg);
+                  const canvas = document.createElement('canvas');
+                  const ctx = canvas.getContext('2d');
+                  const img = new Image();
+                  img.onload = () => {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx?.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx?.drawImage(img, 0, 0);
+                    const pngFile = canvas.toDataURL('image/png');
+                    const downloadLink = document.createElement('a');
+                    downloadLink.download = 'tamenny-qr.png';
+                    downloadLink.href = pngFile;
+                    downloadLink.click();
+                    toast.success('تم تحميل الكود!');
+                  };
+                  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+                }
+              }}
+              variant="outline"
+              className="w-full rounded-xl h-12"
+            >
+              <Download className="w-4 h-4 ml-2" />
+              تحميل الكود
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
