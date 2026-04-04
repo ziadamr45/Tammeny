@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../../demo-user/route';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - Get a single group with members
 export async function GET(
@@ -8,6 +8,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
 
     const group = await db.group.findUnique({
@@ -34,6 +43,15 @@ export async function GET(
       );
     }
 
+    // Check if user is a member
+    const isMember = group.members.some((m) => m.userId === user.userId);
+    if (!isMember) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح لك بالوصول لهذه المجموعة' },
+        { status: 403 }
+      );
+    }
+
     return NextResponse.json({
       success: true,
       group: {
@@ -55,7 +73,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching group:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch group' },
+      { success: false, error: 'فشل في جلب المجموعة' },
       { status: 500 }
     );
   }
@@ -67,9 +85,30 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { name, description, addMemberUserId, removeMemberId } = body;
+
+    // Check if user is admin
+    const membership = await db.groupMember.findFirst({
+      where: { groupId: id, userId: user.userId },
+    });
+
+    if (!membership || membership.role !== 'admin') {
+      return NextResponse.json(
+        { success: false, error: 'فقط المشرف يمكنه تعديل المجموعة' },
+        { status: 403 }
+      );
+    }
 
     // Update group details
     if (name || description !== undefined) {
@@ -138,7 +177,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating group:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update group' },
+      { success: false, error: 'فشل في تحديث المجموعة' },
       { status: 500 }
     );
   }
@@ -150,9 +189,17 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
     const action = searchParams.get('action'); // 'leave' or 'delete'
 
     if (action === 'leave') {
@@ -160,7 +207,7 @@ export async function DELETE(
       await db.groupMember.deleteMany({
         where: {
           groupId: id,
-          userId,
+          userId: user.userId,
         },
       });
 
@@ -182,7 +229,7 @@ export async function DELETE(
       );
     }
 
-    if (group.createdBy !== userId) {
+    if (group.createdBy !== user.userId) {
       return NextResponse.json(
         { success: false, error: 'فقط منشئ المجموعة يمكنه حذفها' },
         { status: 403 }
@@ -200,7 +247,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting group:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete group' },
+      { success: false, error: 'فشل في حذف المجموعة' },
       { status: 500 }
     );
   }

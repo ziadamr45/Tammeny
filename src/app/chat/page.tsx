@@ -112,20 +112,41 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!message.trim() || !selectedChat) return;
     
-    // Add message to local state (would normally send to API)
-    const newMessage = {
-      id: Date.now().toString(),
-      sender: "me",
-      text: message,
-      time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
-      status: "sent"
-    };
-    setMessages(prev => [...prev, newMessage]);
-    setMessage("");
-    scrollToBottom();
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: selectedChat.sessionId,
+          content: message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Add message to local state
+        const newMessage = {
+          id: data.message?.id || Date.now().toString(),
+          sender: "me",
+          text: message,
+          time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+          status: "sent"
+        };
+        setMessages(prev => [...prev, newMessage]);
+        setMessage("");
+        scrollToBottom();
+      } else {
+        toast.error(data.error || "فشل في إرسال الرسالة");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء إرسال الرسالة");
+    }
   };
 
   const handleQuickReply = (reply: string) => {

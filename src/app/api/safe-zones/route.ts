@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../demo-user/route';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - List all safe zones for a user
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
 
     const safeZones = await db.safeZone.findMany({
-      where: { userId },
+      where: { userId: user.userId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -33,7 +39,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching safe zones:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch safe zones' },
+      { success: false, error: 'فشل في جلب المناطق الآمنة' },
       { status: 500 }
     );
   }
@@ -42,9 +48,17 @@ export async function GET(request: NextRequest) {
 // POST - Create a new safe zone
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const {
-      userId,
       name,
       type,
       latitude,
@@ -66,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     const safeZone = await db.safeZone.create({
       data: {
-        userId: userId || DEMO_USER_ID,
+        userId: user.userId,
         name,
         type: type || 'other',
         latitude,
@@ -100,7 +114,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating safe zone:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create safe zone' },
+      { success: false, error: 'فشل في إنشاء المنطقة الآمنة' },
       { status: 500 }
     );
   }

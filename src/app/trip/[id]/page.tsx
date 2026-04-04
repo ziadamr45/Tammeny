@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
   GraduationCap,
   Star,
   Flag,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -40,45 +41,38 @@ import {
   formatArabicTime,
 } from "@/lib/arabic-numerals";
 
-// Mock trip data
-const MOCK_TRIP = {
-  id: "trip-001",
-  destination: "المكتب - مدينة نصر",
-  origin: "منزلي - المعادي",
-  startTime: new Date(Date.now() - 2 * 60 * 60 * 1000),
-  endTime: new Date(Date.now() - 1.5 * 60 * 60 * 1000),
-  distance: 12.5,
-  duration: 32,
-  avgSpeed: 23.4,
-  maxSpeed: 45,
-  status: "completed",
-  transportMode: "car",
-  sharedWith: ["أحمد", "محمد", "سارة"],
-  safetyScore: 95,
-  originCoords: { lat: 29.958, lng: 31.247, name: "المعادي" },
-  destinationCoords: { lat: 30.0444, lng: 31.2357, name: "مدينة نصر" },
-  checkpoints: [
-    { time: new Date(Date.now() - 2 * 60 * 60 * 1000), location: "المعادي", coords: { lat: 29.958, lng: 31.247 }, type: "start" },
-    { time: new Date(Date.now() - 1.9 * 60 * 60 * 1000), location: "كوبري السيدة عائشة", coords: { lat: 29.98, lng: 31.25 }, type: "checkpoint" },
-    { time: new Date(Date.now() - 1.8 * 60 * 60 * 1000), location: "المقطم", coords: { lat: 30.0, lng: 31.25 }, type: "checkpoint" },
-    { time: new Date(Date.now() - 1.7 * 60 * 60 * 1000), location: "العباسية", coords: { lat: 30.02, lng: 31.24 }, type: "checkpoint" },
-    { time: new Date(Date.now() - 1.6 * 60 * 60 * 1000), location: "روكسي", coords: { lat: 30.03, lng: 31.235 }, type: "checkpoint" },
-    { time: new Date(Date.now() - 1.5 * 60 * 60 * 1000), location: "مدينة نصر", coords: { lat: 30.0444, lng: 31.2357 }, type: "end" },
-  ],
-  safetyEvents: [
-    { time: new Date(Date.now() - 1.85 * 60 * 60 * 1000), type: "speed_alert", message: "تنبيه سرعة عالية", location: "المقطم", severity: "warning" },
-    { time: new Date(Date.now() - 1.75 * 60 * 60 * 1000), type: "safe_zone_enter", message: "دخول منطقة آمنة", location: "قرب العباسية", severity: "info" },
-    { time: new Date(Date.now() - 1.65 * 60 * 60 * 1000), type: "check_in", message: "تأكيد الأمان", location: "روكسي", severity: "success" },
-  ],
-  route: [
-    { lat: 29.958, lng: 31.247 },
-    { lat: 29.98, lng: 31.25 },
-    { lat: 30.0, lng: 31.25 },
-    { lat: 30.02, lng: 31.24 },
-    { lat: 30.03, lng: 31.235 },
-    { lat: 30.0444, lng: 31.2357 },
-  ],
-};
+// Trip data interface
+interface TripData {
+  id: string;
+  destination: string;
+  origin: string;
+  startTime: Date;
+  endTime: Date | null;
+  distance: number;
+  duration: number;
+  avgSpeed: number;
+  maxSpeed: number;
+  status: string;
+  transportMode: string;
+  sharedWith: string[];
+  safetyScore: number;
+  originCoords: { lat: number; lng: number; name: string };
+  destinationCoords: { lat: number; lng: number; name: string } | null;
+  checkpoints: {
+    time: Date;
+    location: string;
+    coords: { lat: number; lng: number };
+    type: 'start' | 'end' | 'checkpoint';
+  }[];
+  safetyEvents: {
+    time: Date;
+    type: string;
+    message: string;
+    location: string;
+    severity: string;
+  }[];
+  route: { lat: number; lng: number }[];
+}
 
 // Location type icons
 const getLocationIcon = (type: string) => {
@@ -127,22 +121,62 @@ export default function TripDetailsPage() {
 
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showFullMap, setShowFullMap] = useState(false);
+  const [trip, setTrip] = useState<TripData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // In a real app, we would fetch trip data based on tripId
-  const trip = useMemo(() => MOCK_TRIP, []);
+  // Fetch trip data from API
+  useEffect(() => {
+    const fetchTrip = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/trips/${tripId}`);
+        const data = await response.json();
+
+        if (data.success) {
+          // Convert date strings to Date objects
+          const tripData: TripData = {
+            ...data.trip,
+            startTime: new Date(data.trip.startTime),
+            endTime: data.trip.endTime ? new Date(data.trip.endTime) : null,
+            checkpoints: data.trip.checkpoints.map((c: { time: string | number | Date; location: string; coords: { lat: number; lng: number }; type: 'start' | 'end' | 'checkpoint' }) => ({
+              ...c,
+              time: new Date(c.time),
+            })),
+            safetyEvents: data.trip.safetyEvents.map((e: { time: string | number | Date; type: string; message: string; location: string; severity: string }) => ({
+              ...e,
+              time: new Date(e.time),
+            })),
+          };
+          setTrip(tripData);
+        } else {
+          setError(data.error || 'فشل في جلب بيانات الرحلة');
+        }
+      } catch {
+        setError('حدث خطأ أثناء جلب بيانات الرحلة');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrip();
+  }, [tripId]);
 
   // Calculate trip statistics
-  const stats = useMemo(() => ({
-    distance: trip.distance,
-    duration: trip.duration,
-    avgSpeed: trip.avgSpeed,
-    maxSpeed: trip.maxSpeed,
-    checkpointsCount: trip.checkpoints.length,
-    safetyScore: trip.safetyScore,
-  }), [trip]);
+  const stats = useMemo(() => {
+    if (!trip) return { distance: 0, duration: 0, avgSpeed: 0, maxSpeed: 0, checkpointsCount: 0, safetyScore: 0 };
+    return {
+      distance: trip.distance,
+      duration: trip.duration,
+      avgSpeed: trip.avgSpeed,
+      maxSpeed: trip.maxSpeed,
+      checkpointsCount: trip.checkpoints.length,
+      safetyScore: trip.safetyScore,
+    };
+  }, [trip]);
 
   // Format trip summary for sharing
-  const tripSummary = `
+  const tripSummary = trip ? `
 رحلة طمنّي
 ━━━━━━━━━━━━━
 📍 من: ${trip.origin}
@@ -153,13 +187,13 @@ export default function TripDetailsPage() {
 🚗 متوسط السرعة: ${toArabicNumerals(stats.avgSpeed.toFixed(1))} كم/ساعة
 ━━━━━━━━━━━━━
 📅 ${formatArabicDate(trip.startTime)}
-🕐 ${formatArabicTime(trip.startTime)} - ${formatArabicTime(trip.endTime)}
+🕐 ${formatArabicTime(trip.startTime)}${trip.endTime ? ` - ${formatArabicTime(trip.endTime)}` : ''}
 ━━━━━━━━━━━━━
-✅ حالة الرحلة: مكتملة
+✅ حالة الرحلة: ${trip.status === 'completed' ? 'مكتملة' : 'نشطة'}
 🛡️ درجة الأمان: ${toArabicNumerals(stats.safetyScore)}٪
 ━━━━━━━━━━━━━
 تم مشاركة الموقع مع: ${trip.sharedWith.join('، ')}
-  `.trim();
+  `.trim() : '';
 
   const handleShare = async () => {
     try {
@@ -195,87 +229,128 @@ export default function TripDetailsPage() {
       <Header />
 
       <div className="pt-16 px-4 space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="shrink-0"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">تفاصيل الرحلة</h1>
-            <p className="text-sm text-muted-foreground">
-              {formatArabicDate(trip.startTime)}
-            </p>
+        {/* Loading state */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+            <p className="text-muted-foreground">جاري تحميل بيانات الرحلة...</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowShareDialog(true)}
-          >
-            <Share2 className="w-4 h-4" />
-            مشاركة
-          </Button>
-        </div>
+        )}
 
-        {/* Route Map */}
-        <Card className="overflow-hidden card-shadow">
-          <div className="h-48 relative overflow-hidden">
-            <DynamicMap
-              center={trip.originCoords}
-              destination={trip.destinationCoords}
-              waypoints={trip.checkpoints.slice(1, -1).map(c => ({
-                lat: c.coords.lat,
-                lng: c.coords.lng,
-                name: c.location,
-              }))}
-              showRoute={true}
-              routeStyle="completed"
-              routeInfo={{
-                distance: stats.distance,
-                duration: stats.duration,
-                progress: 100,
-              }}
-              className="h-full w-full"
-            />
-            
-            {/* Expand map button */}
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute bottom-2 left-2 gap-1.5 z-20"
-              onClick={() => setShowFullMap(true)}
-            >
-              <Navigation className="w-4 h-4" />
-              عرض كامل
-            </Button>
-          </div>
-
-          {/* Origin & Destination */}
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-center">
-                <div className="w-3 h-3 rounded-full bg-green-500" />
-                <div className="w-0.5 h-8 bg-gradient-to-b from-green-500 to-red-500" />
-                <div className="w-3 h-3 rounded-full bg-red-500" />
-              </div>
-              <div className="flex-1 space-y-3">
-                <div>
-                  <div className="text-xs text-muted-foreground">من</div>
-                  <div className="font-medium">{trip.origin}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">إلى</div>
-                  <div className="font-medium">{trip.destination}</div>
-                </div>
-              </div>
+        {/* Error state */}
+        {error && !loading && (
+          <Card className="p-8 text-center card-shadow">
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-destructive" />
             </div>
-          </CardContent>
-        </Card>
+            <h3 className="font-bold text-lg mb-2">خطأ</h3>
+            <p className="text-muted-foreground text-sm mb-4">{error}</p>
+            <Button onClick={() => router.back()}>
+              العودة
+            </Button>
+          </Card>
+        )}
+
+        {/* Trip not found */}
+        {!loading && !error && !trip && (
+          <Card className="p-8 text-center card-shadow">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <MapPin className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-bold text-lg mb-2">لم يتم العثور على الرحلة</h3>
+            <p className="text-muted-foreground text-sm mb-4">
+              قد تكون الرحلة محذوفة أو غير موجودة
+            </p>
+            <Button onClick={() => router.back()}>
+              العودة
+            </Button>
+          </Card>
+        )}
+
+        {/* Trip content */}
+        {!loading && !error && trip && (
+          <>
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.back()}
+                className="shrink-0"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-xl font-bold">تفاصيل الرحلة</h1>
+                <p className="text-sm text-muted-foreground">
+                  {formatArabicDate(trip.startTime)}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowShareDialog(true)}
+              >
+                <Share2 className="w-4 h-4" />
+                مشاركة
+              </Button>
+            </div>
+
+            {/* Route Map */}
+            <Card className="overflow-hidden card-shadow">
+              <div className="h-48 relative overflow-hidden">
+                <DynamicMap
+                  center={trip.originCoords}
+                  destination={trip.destinationCoords || undefined}
+                  waypoints={trip.checkpoints.slice(1, -1).map(c => ({
+                    lat: c.coords.lat,
+                    lng: c.coords.lng,
+                    name: c.location,
+                  }))}
+                  showRoute={true}
+                  routeStyle="completed"
+                  routeInfo={{
+                    distance: stats.distance,
+                    duration: stats.duration,
+                    progress: 100,
+                  }}
+                  className="h-full w-full"
+                />
+                
+                {/* Expand map button */}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="absolute bottom-2 left-2 gap-1.5 z-20"
+                  onClick={() => setShowFullMap(true)}
+                >
+                  <Navigation className="w-4 h-4" />
+                  عرض كامل
+                </Button>
+              </div>
+
+              {/* Origin & Destination */}
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <div className="w-0.5 h-8 bg-gradient-to-b from-green-500 to-red-500" />
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <div>
+                      <div className="text-xs text-muted-foreground">من</div>
+                      <div className="font-medium">{trip.origin}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">إلى</div>
+                      <div className="font-medium">{trip.destination}</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
         {/* Trip Statistics */}
         <Card className="card-shadow">
@@ -494,13 +569,16 @@ export default function TripDetailsPage() {
             مشاركة الملخص
           </Button>
         </div>
+          </>
+        )}
       </div>
 
       <BottomNav />
 
       {/* Share Dialog */}
-      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl">
+      {trip && (
+        <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+          <DialogContent className="max-w-sm mx-4 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-center">مشاركة ملخص الرحلة</DialogTitle>
             <DialogDescription className="text-center">
@@ -556,14 +634,16 @@ export default function TripDetailsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
 
       {/* Full Map Dialog */}
+      {trip && (
       <Dialog open={showFullMap} onOpenChange={setShowFullMap}>
         <DialogContent className="max-w-full h-[90vh] p-0 rounded-2xl">
           <div className="relative w-full h-full">
             <DynamicMap
               center={trip.originCoords}
-              destination={trip.destinationCoords}
+              destination={trip.destinationCoords || undefined}
               waypoints={trip.checkpoints.slice(1, -1).map(c => ({
                 lat: c.coords.lat,
                 lng: c.coords.lng,
@@ -614,6 +694,7 @@ export default function TripDetailsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      )}
     </main>
   );
 }

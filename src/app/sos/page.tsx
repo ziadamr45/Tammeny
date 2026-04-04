@@ -75,6 +75,7 @@ export default function SOSPage() {
   const [notifiedContacts, setNotifiedContacts] = useState<string[]>([]);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
+  const [currentSosId, setCurrentSosId] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const vibrationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -217,29 +218,55 @@ export default function SOSPage() {
   }, []);
 
   // Activate SOS
-  const activateSOS = useCallback(() => {
+  const activateSOS = useCallback(async () => {
     setStatus("active");
     startVibration();
     playAlertSound();
 
-    // Generate sharing link
-    const link = `${window.location.origin}/share/sos-${Date.now()}`;
-    setSharingLink(link);
+    try {
+      const response = await fetch('/api/sos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          latitude: location?.lat,
+          longitude: location?.lng,
+          locationName: location?.name,
+          batteryLevel: batteryLevel,
+        }),
+      });
 
-    // Simulate notifying contacts
-    const favoriteContacts = contacts.filter((c) => c.isFavorite);
-    setTimeout(() => {
-      setNotifiedContacts(favoriteContacts.map((c) => c.id));
-      if (favoriteContacts.length > 0) {
-        toast.success(`تم إرسال تنبيه الطوارئ إلى ${toArabicNumerals(favoriteContacts.length)} جهة اتصال`);
+      const data = await response.json();
+
+      if (data.success) {
+        // Generate sharing link
+        const link = `${window.location.origin}/share/sos-${data.sosSession.id}`;
+        setSharingLink(link);
+
+        // Store SOS ID for deactivation
+        setCurrentSosId(data.sosSession.id);
+
+        // Mark notified contacts
+        const favoriteContacts = contacts.filter((c) => c.isFavorite);
+        setTimeout(() => {
+          setNotifiedContacts(favoriteContacts.map((c) => c.id));
+          if (data.notifiedCount > 0) {
+            toast.success(`تم إرسال تنبيه الطوارئ إلى ${toArabicNumerals(data.notifiedCount)} جهة اتصال`);
+          } else {
+            toast.warning("لا توجد جهات اتصال للإبلاغ");
+          }
+        }, 1000);
+
+        // Simulate ETA
+        setEta(Math.floor(Math.random() * 10) + 5);
       } else {
-        toast.warning("لا توجد جهات اتصال للإبلاغ");
+        toast.error(data.error || "فشل في إرسال تنبيه الطوارئ");
       }
-    }, 1000);
-
-    // Simulate ETA
-    setEta(Math.floor(Math.random() * 10) + 5);
-  }, [playAlertSound, startVibration, contacts]);
+    } catch {
+      toast.error("حدث خطأ أثناء إرسال تنبيه الطوارئ");
+    }
+  }, [playAlertSound, startVibration, contacts, location, batteryLevel]);
 
   // Handle SOS button press
   const handleSOSPress = () => {
@@ -290,11 +317,33 @@ export default function SOSPage() {
   };
 
   // Confirm deactivate
-  const confirmDeactivate = () => {
+  const confirmDeactivate = async () => {
+    try {
+      if (currentSosId) {
+        const response = await fetch('/api/sos', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ sosId: currentSosId }),
+        });
+
+        const data = await response.json();
+        if (!data.success) {
+          toast.error(data.error || "فشل في إلغاء تنبيه الطوارئ");
+          return;
+        }
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء إلغاء تنبيه الطوارئ");
+      return;
+    }
+
     setStatus("inactive");
     setCountdown(5);
     setActiveDuration(0);
     setNotifiedContacts([]);
+    setCurrentSosId(null);
     stopVibration();
     setShowConfirmDialog(false);
     toast.success("تم إلغاء تنبيه الطوارئ");

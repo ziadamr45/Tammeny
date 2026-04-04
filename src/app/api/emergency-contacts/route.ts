@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../demo-user/route';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - List all emergency contacts for a user
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
 
     const emergencyContacts = await db.emergencyContact.findMany({
-      where: { userId },
+      where: { userId: user.userId },
       orderBy: [
         { priority: 'asc' },
         { createdAt: 'desc' },
@@ -30,7 +36,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching emergency contacts:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch emergency contacts' },
+      { success: false, error: 'فشل في جلب جهات الطوارئ' },
       { status: 500 }
     );
   }
@@ -39,8 +45,17 @@ export async function GET(request: NextRequest) {
 // POST - Create a new emergency contact
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { userId, name, phone, relation, priority, contactId } = body;
+    const { name, phone, relation, priority, contactId } = body;
 
     if (!name || !phone) {
       return NextResponse.json(
@@ -51,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const emergencyContact = await db.emergencyContact.create({
       data: {
-        userId: userId || DEMO_USER_ID,
+        userId: user.userId,
         name,
         phone,
         relation: relation || null,
@@ -74,7 +89,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating emergency contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create emergency contact' },
+      { success: false, error: 'فشل في إنشاء جهة الطوارئ' },
       { status: 500 }
     );
   }

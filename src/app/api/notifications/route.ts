@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../demo-user/route';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - List all notifications for a user
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مسجل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
     const unreadOnly = searchParams.get('unreadOnly') === 'true';
     const limit = parseInt(searchParams.get('limit') || '50');
 
     const notifications = await db.notification.findMany({
       where: {
-        userId,
+        userId: user.userId,
         ...(unreadOnly ? { isRead: false } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -21,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     const unreadCount = await db.notification.count({
       where: {
-        userId,
+        userId: user.userId,
         isRead: false,
       },
     });
@@ -43,7 +51,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching notifications:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch notifications' },
+      { success: false, error: 'فشل في جلب الإشعارات' },
       { status: 500 }
     );
   }
@@ -52,13 +60,22 @@ export async function GET(request: NextRequest) {
 // PUT - Mark notifications as read
 export async function PUT(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مسجل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { userId, notificationIds, markAllAsRead } = body;
+    const { notificationIds, markAllAsRead } = body;
 
     if (markAllAsRead) {
       await db.notification.updateMany({
         where: {
-          userId: userId || DEMO_USER_ID,
+          userId: user.userId,
           isRead: false,
         },
         data: {
@@ -77,6 +94,7 @@ export async function PUT(request: NextRequest) {
       await db.notification.updateMany({
         where: {
           id: { in: notificationIds },
+          userId: user.userId,
         },
         data: {
           isRead: true,
@@ -97,7 +115,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('Error updating notifications:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update notifications' },
+      { success: false, error: 'فشل في تحديث الإشعارات' },
       { status: 500 }
     );
   }
@@ -106,8 +124,17 @@ export async function PUT(request: NextRequest) {
 // POST - Create a new notification
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مسجل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { userId, type, title, message, data } = body;
+    const { type, title, message, data, targetUserId } = body;
 
     if (!type || !title || !message) {
       return NextResponse.json(
@@ -118,7 +145,7 @@ export async function POST(request: NextRequest) {
 
     const notification = await db.notification.create({
       data: {
-        userId: userId || DEMO_USER_ID,
+        userId: targetUserId || user.userId,
         type,
         title,
         message,
@@ -141,7 +168,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating notification:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create notification' },
+      { success: false, error: 'فشل في إنشاء الإشعار' },
       { status: 500 }
     );
   }

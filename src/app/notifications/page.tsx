@@ -35,72 +35,19 @@ import { useAuth } from "@/hooks/use-auth";
 
 interface Notification {
   id: string;
-  type: "arrival" | "proximity" | "safety" | "share" | "emergency";
+  type: string;
   title: string;
   message: string;
   time: string;
-  read: boolean;
-  icon: React.ReactNode;
-  color: string;
+  isRead: boolean;
+  createdAt: string;
 }
-
-const NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "arrival",
-    title: "وصل أحمد",
-    message: "وصل أحمد إلى المكتب بأمان",
-    time: "منذ ٥ دقائق",
-    read: false,
-    icon: <CheckCircle className="w-5 h-5" />,
-    color: "bg-green-100 text-green-600",
-  },
-  {
-    id: "2",
-    type: "proximity",
-    title: "قريب من الهدف",
-    message: "سارة على بعد ٥٠٠ متر من الوجهة",
-    time: "منذ ١٥ دقيقة",
-    read: false,
-    icon: <Navigation className="w-5 h-5" />,
-    color: "bg-yellow-100 text-yellow-600",
-  },
-  {
-    id: "3",
-    type: "share",
-    title: "مشاركة جديدة",
-    message: "محمد بدأ مشاركة موقعه معك",
-    time: "منذ ساعة",
-    read: true,
-    icon: <MapPin className="w-5 h-5" />,
-    color: "bg-blue-100 text-blue-600",
-  },
-  {
-    id: "4",
-    type: "safety",
-    title: "تأكيد الأمان",
-    message: "تم تأكيد وصول العائلة بسلام",
-    time: "منذ ٣ ساعات",
-    read: true,
-    icon: <Heart className="w-5 h-5" />,
-    color: "bg-pink-100 text-pink-600",
-  },
-  {
-    id: "5",
-    type: "emergency",
-    title: "تنبيه طوارئ",
-    message: "تم إرسال تنبيه طوارئ من أحمد",
-    time: "أمس",
-    read: true,
-    icon: <AlertTriangle className="w-5 h-5" />,
-    color: "bg-red-100 text-red-600",
-  },
-];
 
 export default function NotificationsPage() {
   const router = useRouter();
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({
     arrivals: true,
     proximity: true,
@@ -119,11 +66,78 @@ export default function NotificationsPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  // Fetch notifications from API
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    toast.success("تم تحديد جميع الإشعارات كمقروءة");
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/notifications');
+        const data = await response.json();
+
+        if (data.success) {
+          const formattedNotifications = data.notifications.map((n: { id: string; type: string; title: string; message: string; isRead: boolean; createdAt: string }) => ({
+            id: n.id,
+            type: n.type,
+            title: n.title,
+            message: n.message,
+            time: formatTimeAgo(new Date(n.createdAt)),
+            isRead: n.isRead,
+            createdAt: n.createdAt,
+          }));
+          setNotifications(formattedNotifications);
+        } else {
+          toast.error(data.error || "فشل في جلب الإشعارات");
+        }
+      } catch {
+        toast.error("حدث خطأ أثناء جلب الإشعارات");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [isAuthenticated]);
+
+  // Helper function to format time ago
+  const formatTimeAgo = (date: Date): string => {
+    const now = new Date();
+    const diff = now.getTime() - new Date(date).getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'الآن';
+    if (minutes < 60) return `منذ ${minutes} دقيقة`;
+    if (hours < 24) return `منذ ${hours} ساعة`;
+    if (days < 7) return `منذ ${days} يوم`;
+    return new Date(date).toLocaleDateString('ar-EG');
+  };
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ markAllAsRead: true }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        toast.success("تم تحديد جميع الإشعارات كمقروءة");
+      } else {
+        toast.error(data.error || "فشل في تحديث الإشعارات");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء تحديث الإشعارات");
+    }
   };
 
   const handleClearAll = () => {
@@ -134,6 +148,24 @@ export default function NotificationsPage() {
   const handleSettingChange = (key: keyof typeof settings, value: boolean) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
     toast.success(value ? "تم التفعيل" : "تم الإيقاف");
+  };
+
+  // Get notification icon and color based on type
+  const getNotificationStyle = (type: string) => {
+    switch (type) {
+      case "arrival":
+        return { icon: <CheckCircle className="w-5 h-5" />, color: "bg-green-100 text-green-600" };
+      case "proximity":
+        return { icon: <Navigation className="w-5 h-5" />, color: "bg-yellow-100 text-yellow-600" };
+      case "share":
+        return { icon: <MapPin className="w-5 h-5" />, color: "bg-blue-100 text-blue-600" };
+      case "safety":
+        return { icon: <Heart className="w-5 h-5" />, color: "bg-pink-100 text-pink-600" };
+      case "emergency":
+        return { icon: <AlertTriangle className="w-5 h-5" />, color: "bg-red-100 text-red-600" };
+      default:
+        return { icon: <Bell className="w-5 h-5" />, color: "bg-gray-100 text-gray-600" };
+    }
   };
 
   return (
@@ -196,7 +228,16 @@ export default function NotificationsPage() {
           </TabsList>
 
           <TabsContent value="notifications" className="space-y-4">
-            {notifications.length === 0 ? (
+            {/* Loading state */}
+            {loading && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+                <p className="text-muted-foreground">جاري تحميل الإشعارات...</p>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && notifications.length === 0 && (
               <Card className="p-8 text-center card-shadow">
                 <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-4 flex items-center justify-center">
                   <Bell className="w-8 h-8 text-muted-foreground" />
@@ -206,50 +247,69 @@ export default function NotificationsPage() {
                   ستظهر الإشعارات هنا عندما يحدث شيء جديد
                 </p>
               </Card>
-            ) : (
+            )}
+
+            {/* Notifications list */}
+            {!loading && notifications.length > 0 && (
               <div className="space-y-3">
-                {notifications.map((notification) => (
-                  <Card
-                    key={notification.id}
-                    className={cn(
-                      "p-4 card-shadow cursor-pointer hover:shadow-lg transition-all",
-                      !notification.read && "border-r-4 border-r-primary"
-                    )}
-                    onClick={() => {
-                      setNotifications((prev) =>
-                        prev.map((n) =>
-                          n.id === notification.id ? { ...n, read: true } : n
-                        )
-                      );
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                          notification.color
-                        )}
-                      >
-                        {notification.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{notification.title}</h4>
-                          {!notification.read && (
-                            <div className="w-2 h-2 rounded-full bg-primary" />
+                {notifications.map((notification) => {
+                  const style = getNotificationStyle(notification.type);
+                  return (
+                    <Card
+                      key={notification.id}
+                      className={cn(
+                        "p-4 card-shadow cursor-pointer hover:shadow-lg transition-all",
+                        !notification.isRead && "border-r-4 border-r-primary"
+                      )}
+                      onClick={async () => {
+                        if (!notification.isRead) {
+                          try {
+                            await fetch('/api/notifications', {
+                              method: 'PUT',
+                              headers: {
+                                'Content-Type': 'application/json',
+                              },
+                              body: JSON.stringify({ notificationIds: [notification.id] }),
+                            });
+                            setNotifications((prev) =>
+                              prev.map((n) =>
+                                n.id === notification.id ? { ...n, isRead: true } : n
+                              )
+                            );
+                          } catch {
+                            // Silently fail
+                          }
+                        }
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                            style.color
                           )}
+                        >
+                          {style.icon}
                         </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          {notification.message}
-                        </p>
-                        <span className="text-xs text-muted-foreground mt-1 block">
-                          {notification.time}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{notification.title}</h4>
+                            {!notification.isRead && (
+                              <div className="w-2 h-2 rounded-full bg-primary" />
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {notification.message}
+                          </p>
+                          <span className="text-xs text-muted-foreground mt-1 block">
+                            {notification.time}
+                          </span>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
                       </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </Card>
-                ))}
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>

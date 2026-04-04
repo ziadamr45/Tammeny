@@ -105,10 +105,37 @@ export default function ProfilePage() {
     setEditedProfile(profile);
   };
 
-  const handleSaveEdit = () => {
-    setLocalProfileOverrides(editedProfile);
-    setIsEditing(false);
-    toast.success("تم حفظ التغييرات بنجاح!");
+  const handleSaveEdit = async () => {
+    try {
+      const response = await fetch('/api/user', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editedProfile.name,
+          email: editedProfile.email,
+          phone: editedProfile.phone,
+          avatar: editedProfile.avatar,
+          gender: editedProfile.gender,
+          address: editedProfile.address,
+          notifications: editedProfile.notifications,
+          ghostMode: editedProfile.ghostMode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setLocalProfileOverrides(editedProfile);
+        setIsEditing(false);
+        toast.success("تم حفظ التغييرات بنجاح!");
+      } else {
+        toast.error(data.error || "فشل في حفظ التغييرات");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء الحفظ");
+    }
   };
 
   const handleAvatarClick = () => {

@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../demo-user/route';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - List all contacts for a user
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
 
     const contacts = await db.contact.findMany({
-      where: { userId },
+      where: { userId: user.userId },
       orderBy: [
         { isFavorite: 'desc' },
         { createdAt: 'desc' },
@@ -34,7 +40,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching contacts:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch contacts' },
+      { success: false, error: 'فشل في جلب جهات الاتصال' },
       { status: 500 }
     );
   }
@@ -43,8 +49,17 @@ export async function GET(request: NextRequest) {
 // POST - Create a new contact
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser();
+    
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يجب تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { userId, name, phone, email, relation, isFavorite, isEmergencyContact, notifyOnArrival, notifyOnEmergency } = body;
+    const { name, phone, email, relation, isFavorite, isEmergencyContact, notifyOnArrival, notifyOnEmergency } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -55,7 +70,7 @@ export async function POST(request: NextRequest) {
 
     const contact = await db.contact.create({
       data: {
-        userId: userId || DEMO_USER_ID,
+        userId: user.userId,
         name,
         phone: phone || null,
         email: email || null,
@@ -85,7 +100,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create contact' },
+      { success: false, error: 'فشل في إنشاء جهة الاتصال' },
       { status: 500 }
     );
   }

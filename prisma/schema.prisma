@@ -48,6 +48,7 @@ model User {
   notifications   Notification[]
   tripHistory     TripHistory[]
   arrivedSafe     ArrivedSafe[]
+  sosSessions     SOSSession[]
 
   @@map("users")
 }
@@ -312,4 +313,25 @@ model ArrivedSafe {
 
   @@index([userId])
   @@map("arrived_safe")
+}
+
+// SOS Session model for emergency alerts
+model SOSSession {
+  id            String    @id @default(cuid())
+  userId        String
+  latitude      Float?
+  longitude     Float?
+  locationName  String?
+  batteryLevel  Int?
+  status        String    @default("active") // "active" | "resolved" | "expired"
+  
+  // Timestamps
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("sos_sessions")
 }
