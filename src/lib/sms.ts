@@ -1,6 +1,7 @@
 /**
- * مكتبة إرسال رسائل SMS عبر Twilio
+ * مكتبة إرسال رسائل SMS عبر Twilio REST API
  * تدعم إرسال تنبيهات الطوارئ ووصول المستخدم والرسائل التجريبية
+ * لا تتطلب تثبيت حزمة twilio - تستخدم fetch مباشرة
  */
 
 // نوع الموقع للمشاركة
@@ -72,7 +73,8 @@ function generateMessageContent(
 }
 
 /**
- * إرسال رسالة SMS عبر Twilio
+ * إرسال رسالة SMS عبر Twilio REST API
+ * يستخدم fetch مباشرة بدون الحاجة لحزمة twilio
  * 
  * @param phone - رقم هاتف المستلم
  * @param userName - اسم المرسل
@@ -100,15 +102,9 @@ export async function sendSMSAlert(
   }
 
   try {
-    // استيراد Twilio ديناميكياً
-    const twilio = await import('twilio');
-    
     const accountSid = process.env.TWILIO_ACCOUNT_SID!;
     const authToken = process.env.TWILIO_AUTH_TOKEN!;
     const fromNumber = process.env.TWILIO_PHONE_NUMBER!;
-
-    // إنشاء عميل Twilio
-    const client = twilio.default(accountSid, authToken);
 
     // إنشاء محتوى الرسالة
     const messageBody = generateMessageContent(userName, location, shareLink, type);
@@ -121,28 +117,48 @@ export async function sendSMSAlert(
 
     console.log(`[SMS] 📤 إرسال رسالة ${type} إلى ${formattedPhone}`);
 
-    // إرسال الرسالة
-    const message = await client.messages.create({
-      body: messageBody,
-      from: fromNumber,
-      to: formattedPhone,
-    });
+    // إنشاء Basic Auth header
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+
+    // إرسال الرسالة عبر Twilio REST API
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          From: fromNumber,
+          To: formattedPhone,
+          Body: messageBody,
+        }),
+      }
+    );
+
+    const result = await response.json() as { 
+      sid?: string; 
+      status?: string; 
+      error_message?: string;
+      message?: string;
+    };
 
     // التحقق من حالة الإرسال
-    if (message.status === 'failed' || message.status === 'undelivered') {
-      console.error(`[SMS] ❌ فشل الإرسال - الحالة: ${message.status}`);
-      console.error(`[SMS] خطأ: ${message.errorMessage}`);
+    if (!response.ok) {
+      console.error(`[SMS] ❌ فشل الإرسال - الحالة: ${response.status}`);
+      console.error(`[SMS] خطأ: ${result.error_message || result.message}`);
       return {
         success: false,
-        error: message.errorMessage || 'فشل في إرسال الرسالة',
+        error: result.error_message || result.message || 'فشل في إرسال الرسالة',
       };
     }
 
-    console.log(`[SMS] ✅ تم الإرسال بنجاح - ID: ${message.sid}`);
+    console.log(`[SMS] ✅ تم الإرسال بنجاح - ID: ${result.sid}`);
     
     return {
       success: true,
-      messageId: message.sid,
+      messageId: result.sid,
     };
   } catch (error: unknown) {
     // معالجة الأخطاء
