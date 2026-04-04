@@ -35,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { toArabicNumerals, formatArabicDistance } from "@/lib/arabic-numerals";
+import { LogoIconInline } from "@/components/tamenny/logo";
 
 interface SessionData {
   id: string;
@@ -418,10 +419,7 @@ function ViewerPageContent() {
       {/* Header */}
       <header className="sticky top-0 bg-card/95 backdrop-blur-lg border-b border-border z-50">
         <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            <span className="font-bold text-primary">طمنّي</span>
-          </div>
+          <LogoIconInline />
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
               آخر تحديث: {lastUpdate.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
