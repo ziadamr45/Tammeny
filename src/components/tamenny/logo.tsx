@@ -11,10 +11,10 @@ interface LogoProps {
 }
 
 const sizeMap = {
-  sm: { container: "w-8 h-8", text: "text-lg" },
-  md: { container: "w-12 h-12", text: "text-xl" },
-  lg: { container: "w-16 h-16", text: "text-2xl" },
-  xl: { container: "w-24 h-24", text: "text-3xl" },
+  sm: { container: "w-8 h-8", text: "text-lg", tagline: "text-[10px]" },
+  md: { container: "w-12 h-12", text: "text-xl", tagline: "text-xs" },
+  lg: { container: "w-16 h-16", text: "text-2xl", tagline: "text-sm" },
+  xl: { container: "w-24 h-24", text: "text-3xl", tagline: "text-base" },
 };
 
 export function Logo({ size = "md", showText = true, className }: LogoProps) {
@@ -37,7 +37,14 @@ export function Logo({ size = "md", showText = true, className }: LogoProps) {
       </div>
       {showText && (
         <div className="flex flex-col items-center">
-          <h1 className={cn("font-bold text-primary", sizeMap[size].text)}>
+          <h1 
+            className={cn("font-bold", sizeMap[size].text)}
+            style={{
+              color: "#0F766E", // teal-700
+              fontFamily: "'Noto Sans Arabic', 'Cairo', sans-serif",
+              letterSpacing: "0.02em",
+            }}
+          >
             طمنّي
           </h1>
           <p className="text-muted-foreground text-xs">أمانك بضغطة زر</p>
@@ -132,7 +139,14 @@ export function LogoInline({ size = "md", showText = true, className }: LogoProp
       </div>
       {showText && (
         <div className="flex flex-col items-center">
-          <h1 className={cn("font-bold text-primary", sizeMap[size].text)}>
+          <h1 
+            className={cn("font-bold", sizeMap[size].text)}
+            style={{
+              color: "#0F766E", // teal-700
+              fontFamily: "'Noto Sans Arabic', 'Cairo', sans-serif",
+              letterSpacing: "0.02em",
+            }}
+          >
             طمنّي
           </h1>
           <p className="text-muted-foreground text-xs">أمانك بضغطة زر</p>
@@ -157,8 +171,8 @@ export function LogoIconInline({ className }: { className?: string }) {
       >
         <defs>
           <linearGradient id="pinGradIcon" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={isDark ? "#0F4C5C" : "#4FD1C5"}/>
-            <stop offset="100%" stopColor={isDark ? "#0B3A47" : "#2CB1BC"}/>
+            <stop offset="0" stopColor={isDark ? "#0F4C5C" : "#4FD1C5"} />
+            <stop offset="1" stopColor={isDark ? "#0B3A47" : "#2CB1BC"} />
           </linearGradient>
         </defs>
         
@@ -174,7 +188,16 @@ export function LogoIconInline({ className }: { className?: string }) {
         {/* Lock */}
         <rect x="200" y="195" width="36" height="32" rx="8" fill="#F4B942"/>
       </svg>
-      <span className="font-bold text-lg text-primary">طمنّي</span>
+      <span 
+        className="font-bold text-lg"
+        style={{
+          color: "#0F766E", // teal-700
+          fontFamily: "'Noto Sans Arabic', 'Cairo', sans-serif",
+          letterSpacing: "0.02em",
+        }}
+      >
+        طمنّي
+      </span>
     </div>
   );
 }
