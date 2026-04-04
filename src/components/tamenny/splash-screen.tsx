@@ -13,6 +13,7 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
   const [show, setShow] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const prevIsVisible = useRef(isVisible);
+  const hasHidden = useRef(false); // Track if we've already hidden
 
   useEffect(() => {
     // Auto-hide mode with duration
@@ -35,8 +36,13 @@ export function SplashScreen({ onComplete, duration, isVisible = true }: SplashS
 
   // Controlled mode - hide when isVisible becomes false
   useEffect(() => {
-    // Only react when isVisible changes from true to false
-    if (prevIsVisible.current && !isVisible && show && !isFadingOut) {
+    // Skip if already hidden
+    if (hasHidden.current) return;
+    
+    // Hide when isVisible becomes false
+    if (!isVisible && show && !isFadingOut) {
+      hasHidden.current = true;
+      
       // Use setTimeout to defer state update
       const fadeTimer = setTimeout(() => {
         setIsFadingOut(true);

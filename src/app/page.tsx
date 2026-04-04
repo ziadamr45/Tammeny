@@ -44,11 +44,19 @@ export default function HomePage() {
   
   // Saved location - loads last known location instantly
   const { savedLocation, saveLocation } = useSavedLocation();
-  
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/me');
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch('/api/auth/me', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
         if (!data.success || !data.user) {
           router.replace('/login');
