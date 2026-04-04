@@ -165,6 +165,79 @@
 
 ---
 
+## Phase 5: Round 3 Bug Fixes (Completed 2025-01-16)
+
+### BUG #1: Achievement ID Mismatch ✅
+**Problem:** Frontend had 12 achievement IDs, API returned 6 different IDs. Only 2 matched (safe-traveler, explorer). Merge didn't work for most achievements, showing fake unlocked status for new users.
+
+**Fix:**
+- Updated `/app/achievements/page.tsx` to use matching IDs from API
+- Changed achievements from 12 to 6 matching: safe-traveler, safe-zone, emergency-contact, sharer, arrived-safe, explorer
+- Removed hardcoded dates (2024-01-xx) from template
+- Updated merge logic to filter out non-matching achievements
+- All achievements now start with `progress: 0, unlocked: false`
+
+### BUG #2: Help Page Call Buttons Not Working ✅
+**Problem:** Call buttons showed toast message instead of opening phone dialer.
+
+**Fix in `/app/help/page.tsx`:**
+- `handleEmergencyCall()` now uses `window.open('tel:+201221234567', '_self')`
+- Help line button uses `window.open('tel:+208001234567', '_self')`
+- Email button uses `window.open('mailto:support@tamenny.app', '_self')`
+
+### BUG #3: Emergency Contacts Import Not Working ✅
+**Problem:** Import button showed fake success toast without actual import.
+
+**Fix in `/app/emergency-contacts/page.tsx`:**
+- Added Contact Picker API implementation (`navigator.contacts.select`)
+- Imports contacts and saves to database via `/api/emergency-contacts`
+- Falls back to informative message when API not supported
+
+### BUG #4: Share Page Fake Call Modal ✅
+**Problem:** Call button showed fake modal pretending there's an active call - misleading users.
+
+**Fix in `/app/share/[id]/page.tsx`:**
+- Removed fake call modal entirely
+- Changed `handleStartCall()` to send real message request via `/api/messages`
+- Button text changed from "اتصال" to "طلب اتصال"
+- Sends "طلب مكالمة هاتفية - أرجو الاتصال بي" message to session creator
+- Removed unused state variables and functions
+
+### BUG #5: Safety Checkin Fake setTimeout ✅
+**Problem:** Check-in used `setTimeout` simulation, didn't save to database.
+
+**Fix:**
+- Created `/api/safety-checkin/route.ts` - POST creates ArrivedSafe record
+- Updated `/components/tamenny/safety-checkin.tsx` to call real API
+- Gets user's GPS location before saving
+- Creates notification for emergency contacts
+
+### BUG #6: Offline Indicator Fake Sync ✅
+**Problem:** Pending actions were deleted without syncing to server.
+
+**Fix:**
+- Created `/api/sync/route.ts` - Processes pending actions
+- Updated `/components/tamenny/offline-indicator.tsx` to POST to sync API
+- Handles different action types: check_in, safe_zone, share_end, location_update
+- Shows real success/error feedback
+
+### BUG #7: Groups Text Improvement ✅
+**Problem:** Showed "X متصل" (connected) but count came from active sessions.
+
+**Fix in `/app/groups/page.tsx`:**
+- Changed "متصل الآن" → "مشارك الآن" (sharing now)
+- Changed "متصل" → "مشارك" (sharing)
+- More accurate terminology for location sharing context
+
+---
+
+## API Endpoints Created in Phase 5
+- `POST /api/safety-checkin` - Create safety check-in record
+- `GET /api/safety-checkin` - Get check-in history
+- `POST /api/sync` - Sync pending offline actions
+
+---
+
 ## Pending Work
 
 None - All identified bugs have been fixed!

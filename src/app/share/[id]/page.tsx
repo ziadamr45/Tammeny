@@ -21,22 +21,14 @@ import {
   Volume2,
   VolumeX,
   RefreshCw,
-  Share2,
   Heart,
-  AlertCircle,
-  Car,
-  Footprints,
-  Bike,
-  Timer,
-  TrendingDown,
   Zap,
   Bell,
   Send,
   Eye,
   Radio,
   Activity,
-  PhoneCall,
-  PhoneOff,
+  Timer,
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,16 +64,12 @@ export default function ViewerPage() {
   const [isNearby, setIsNearby] = useState(false);
   const [hasArrived, setHasArrived] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
-  const [showCallModal, setShowCallModal] = useState(false);
   const [message, setMessage] = useState("");
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [etaCountdown, setEtaCountdown] = useState<number | null>(null);
   const [progressValue, setProgressValue] = useState(0);
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [callDuration, setCallDuration] = useState(0);
   const [sendingMessage, setSendingMessage] = useState(false);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isNearbyRef = useRef(isNearby);
   const hasArrivedRef = useRef(hasArrived);
   const isMutedRef = useRef(isMuted);
@@ -222,22 +210,6 @@ export default function ViewerPage() {
     return () => clearInterval(progressInterval);
   }, [hasArrived, session?.destLat]);
 
-  // Call duration timer
-  useEffect(() => {
-    if (isCallActive) {
-      callTimerRef.current = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    }
-
-    return () => {
-      if (callTimerRef.current) {
-        clearInterval(callTimerRef.current);
-        callTimerRef.current = null;
-      }
-    };
-  }, [isCallActive]);
-
   const handleSendMessage = async () => {
     if (!message.trim() || !session) return;
     setSendingMessage(true);
@@ -274,28 +246,39 @@ export default function ViewerPage() {
     }
   };
 
-  const handleStartCall = () => {
-    setShowCallModal(true);
-    setIsCallActive(true);
-    toast.success("جاري الاتصال...", {
-      icon: <Phone className="w-4 h-4" />,
-    });
-  };
+  const handleStartCall = async () => {
+    if (!session) return;
+    
+    try {
+      // Send a call request message to the session creator
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: session.id,
+          content: "طلب مكالمة هاتفية - أرجو الاتصال بي",
+          receiverId: session.id,
+          type: 'call_request',
+        }),
+      });
 
-  const handleEndCall = () => {
-    setIsCallActive(false);
-    setShowCallModal(false);
-    setCallDuration(0);
-    toast.info("تم إنهاء المكالمة");
-  };
+      const data = await response.json();
 
-  const formatCallDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+      if (data.success) {
+        toast.success("تم إرسال طلب المكالمة!", {
+          icon: <Phone className="w-4 h-4" />,
+          description: "سيتم إشعار المستخدم بطلبك",
+        });
+      } else {
+        toast.error(data.error || "فشل في إرسال طلب المكالمة");
+      }
+    } catch (error) {
+      console.error('Error sending call request:', error);
+      toast.error("فشل في إرسال طلب المكالمة");
+    }
   };
-
-  const getTransportIcon = () => <Car className="w-4 h-4" />;
 
   // Loading state
   if (loading) {
@@ -603,7 +586,7 @@ export default function ViewerPage() {
                   مشفر AES-256
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
-                  {getTransportIcon()}
+                  🚗
                   سيارة
                 </Badge>
               </div>
@@ -641,7 +624,7 @@ export default function ViewerPage() {
             onClick={handleStartCall}
           >
             <Phone className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
-            اتصال
+            طلب اتصال
           </Button>
         </div>
 
@@ -766,61 +749,6 @@ export default function ViewerPage() {
                 </>
               )}
             </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Call Modal */}
-      <Dialog open={showCallModal} onOpenChange={setShowCallModal}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl">
-          <div className="space-y-6 py-8">
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                {isCallActive && (
-                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                )}
-                <Avatar className="w-20 h-20 border-4 border-primary/20">
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-3xl font-bold">
-                    {session.creatorName[0]}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-xl">{session.creatorName}</div>
-                <div className="text-muted-foreground flex items-center justify-center gap-2 mt-1">
-                  {isCallActive ? (
-                    <>
-                      <PhoneCall className="w-4 h-4 text-green-500 animate-pulse" />
-                      <span className="text-green-600">متصل - {formatCallDuration(callDuration)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Phone className="w-4 h-4" />
-                      <span>جاري الاتصال...</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {isCallActive && (
-              <div className="flex justify-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" style={{ animationDelay: '0.4s' }} />
-              </div>
-            )}
-
-            <div className="flex justify-center gap-4">
-              <Button
-                size="lg"
-                variant="destructive"
-                className="w-16 h-16 rounded-full shadow-lg"
-                onClick={handleEndCall}
-              >
-                <PhoneOff className="w-6 h-6" />
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>

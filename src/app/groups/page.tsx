@@ -238,7 +238,7 @@ export default function GroupsPage() {
               <div>
                 <h1 className="text-xl font-bold">المجموعات</h1>
                 <p className="text-sm text-muted-foreground">
-                  {totalGroups} مجموعات • {onlineMembers} متصل الآن
+                  {totalGroups} مجموعات • {onlineMembers} مشارك الآن
                 </p>
               </div>
               <Button
@@ -582,7 +582,7 @@ function GroupCard({
         </div>
         <div className="flex-1 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-green-600">{onlineCount} متصل</span>
+            <span className="text-green-600">{onlineCount} مشارك</span>
           </div>
           <div className="text-xs text-muted-foreground">
             {group.members.length} أعضاء

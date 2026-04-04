@@ -157,27 +157,66 @@ export function SafetyCheckIn({
   const handleConfirmSafety = async () => {
     setIsConfirming(true);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    
-    const now = new Date();
-    const nextCheck = new Date(now.getTime() + checkInInterval * 60 * 1000);
-    
-    setSafetyStatus({
-      lastCheckIn: now,
-      nextCheckIn: nextCheck,
-      missedCheckIns: 0,
-      status: "safe",
-    });
-    
-    setShowCheckInModal(false);
-    setIsConfirming(false);
-    
-    toast.success("تم تأكيد الأمان!", {
-      icon: <CheckCircle className="w-4 h-4 text-green-500" />,
-    });
-    
-    onSafetyConfirm?.();
+    try {
+      // Get user's current location if available
+      let locationData = { latitude: 0, longitude: 0, locationName: 'تحقق أمان' };
+      
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 5000,
+            });
+          });
+          locationData = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            locationName: 'تحقق أمان',
+          };
+        } catch {
+          // Location not available, use default
+        }
+      }
+
+      // Call the real API to save check-in
+      const response = await fetch('/api/safety-checkin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(locationData),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'فشل في حفظ تحقق الأمان');
+      }
+
+      const now = new Date();
+      const nextCheck = new Date(now.getTime() + checkInInterval * 60 * 1000);
+      
+      setSafetyStatus({
+        lastCheckIn: now,
+        nextCheckIn: nextCheck,
+        missedCheckIns: 0,
+        status: "safe",
+      });
+      
+      setShowCheckInModal(false);
+      
+      toast.success("تم تأكيد الأمان!", {
+        icon: <CheckCircle className="w-4 h-4 text-green-500" />,
+      });
+      
+      onSafetyConfirm?.();
+    } catch (error) {
+      console.error('Error confirming safety:', error);
+      toast.error("فشل في حفظ تحقق الأمان");
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const handleEmergency = () => {

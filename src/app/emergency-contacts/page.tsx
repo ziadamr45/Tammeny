@@ -332,7 +332,46 @@ export default function EmergencyContactsPage() {
               </button>
 
               <button
-                onClick={() => toast.success("تم استيراد جهات الاتصال")}
+                onClick={async () => {
+                  // Check if Contact Picker API is available
+                  if ('contacts' in navigator && 'select' in (navigator as Navigator & { contacts: { select: (props: string[], options: { multiple: boolean }) => Promise<unknown[]> } }).contacts) {
+                    try {
+                      const contacts = await (navigator as Navigator & { 
+                        contacts: { 
+                          select: (props: string[], options: { multiple: boolean }) => Promise<Array<{ name: string; tel: string[] }>> 
+                        } 
+                      }).contacts.select(['name', 'tel'], { multiple: true });
+                      
+                      if (contacts.length > 0) {
+                        // Add imported contacts
+                        for (const contact of contacts.slice(0, 5)) {
+                          if (contact.name && contact.tel && contact.tel[0]) {
+                            await fetch("/api/emergency-contacts", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                name: contact.name,
+                                phone: contact.tel[0],
+                                relation: "صديق",
+                                priority: contacts.length + 1,
+                              }),
+                            });
+                          }
+                        }
+                        toast.success(`تم استيراد ${contacts.length} جهة اتصال`);
+                        fetchContacts();
+                      }
+                    } catch (err) {
+                      console.error("Error importing contacts:", err);
+                      toast.error("فشل استيراد جهات الاتصال");
+                    }
+                  } else {
+                    // Fallback: Show instructions
+                    toast.info("متصفحك لا يدعم استيراد جهات الاتصال. يمكنك الإضافة يدوياً أو استخدام التطبيق على جهاز محمول.", {
+                      duration: 5000,
+                    });
+                  }
+                }}
                 className="w-full flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
               >
                 <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">

@@ -124,22 +124,38 @@ export function OfflineIndicator({
   // Sync pending actions when back online
   useEffect(() => {
     if (isOnline && pendingActions.length > 0) {
-      // Simulate syncing
+      // Actually sync with server
       const syncActions = async () => {
         toast.info("جاري مزامنة البيانات المعلقة...");
         
-        // In a real app, this would actually sync with the server
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        setPendingActions([]);
-        localStorage.removeItem("tamenny_pending_actions");
-        
-        toast.success(`تمت مزامنة ${toArabicNumerals(pendingActions.length)} إجراء بنجاح`);
+        try {
+          const response = await fetch('/api/sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ actions: pendingActions }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setPendingActions([]);
+            localStorage.removeItem("tamenny_pending_actions");
+            
+            toast.success(data.message || `تمت مزامنة ${toArabicNumerals(pendingActions.length)} إجراء بنجاح`);
+          } else {
+            toast.error(data.error || "فشل في مزامنة بعض الإجراءات");
+          }
+        } catch (error) {
+          console.error('Error syncing actions:', error);
+          toast.error("فشل في مزامنة البيانات. سيتم إعادة المحاولة لاحقاً.");
+        }
       };
 
       syncActions();
     }
-  }, [isOnline, pendingActions.length]);
+  }, [isOnline, pendingActions]);
 
   // Clear all pending actions
   const clearPendingActions = useCallback(() => {

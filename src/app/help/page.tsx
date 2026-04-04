@@ -239,7 +239,9 @@ export default function HelpPage() {
   };
 
   const handleEmergencyCall = () => {
-    toast.success("جاري الاتصال بخط الطوارئ...");
+    // Open phone dialer with emergency number
+    window.open('tel:+201221234567', '_self');
+    toast.success("جاري فتح تطبيق الهاتف...");
     setShowEmergencyDialog(false);
   };
 
@@ -471,7 +473,7 @@ export default function HelpPage() {
                 variant="outline"
                 size="sm"
                 className="rounded-lg"
-                onClick={() => toast.success("جاري الاتصال...")}
+                onClick={() => window.open('tel:+208001234567', '_self')}
               >
                 اتصال
               </Button>
@@ -490,7 +492,7 @@ export default function HelpPage() {
                 variant="outline"
                 size="sm"
                 className="rounded-lg"
-                onClick={() => toast.success("جاري فتح البريد...")}
+                onClick={() => window.open('mailto:support@tamenny.app', '_self')}
               >
                 مراسلة
               </Button>
