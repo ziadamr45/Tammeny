@@ -10,7 +10,6 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   const [initialLanguage, setInitialLanguage] = useState<Language | undefined>(undefined);
-  const [mounted, setMounted] = useState(false);
   const loadedSettings = useRef(false);
 
   useEffect(() => {
@@ -20,22 +19,12 @@ export function Providers({ children }: ProvidersProps) {
     // Load language from localStorage on mount
     const savedLang = localStorage.getItem("tamenny-language") as Language | null;
     if (savedLang && (savedLang === "ar" || savedLang === "en")) {
-      // Defer state update
-      const timer = setTimeout(() => {
-        setInitialLanguage(savedLang);
-        setMounted(true);
-      }, 0);
-      return () => clearTimeout(timer);
-    } else {
-      const timer = setTimeout(() => setMounted(true), 0);
-      return () => clearTimeout(timer);
+      setInitialLanguage(savedLang);
     }
   }, []);
 
   // Also load user's language preference from their account
   useEffect(() => {
-    if (!mounted) return;
-    
     const loadUserSettings = async () => {
       try {
         const response = await fetch("/api/user/settings");
@@ -52,12 +41,9 @@ export function Providers({ children }: ProvidersProps) {
     };
     
     loadUserSettings();
-  }, [mounted]);
+  }, []);
 
-  if (!mounted) {
-    return <>{children}</>;
-  }
-
+  // Always render the LanguageProvider - it handles default values internally
   return (
     <LanguageProvider initialLanguage={initialLanguage}>
       {children}

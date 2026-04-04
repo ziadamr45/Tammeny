@@ -21,6 +21,16 @@ interface LanguageContextType {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
+// Default values for SSR (server-side rendering)
+const defaultContextValue: LanguageContextType = {
+  language: defaultLanguage,
+  setLanguage: async () => {},
+  t: translations[defaultLanguage],
+  direction: getDirection(defaultLanguage),
+  isRTL: isRTL(defaultLanguage),
+  isLoading: false,
+};
+
 interface LanguageProviderProps {
   children: ReactNode;
   initialLanguage?: Language;
@@ -90,8 +100,9 @@ export function LanguageProvider({ children, initialLanguage }: LanguageProvider
 
 export function useLanguage(): LanguageContextType {
   const context = useContext(LanguageContext);
+  // Return default values during SSR instead of throwing error
   if (context === undefined) {
-    throw new Error("useLanguage must be used within a LanguageProvider");
+    return defaultContextValue;
   }
   return context;
 }
