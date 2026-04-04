@@ -1797,3 +1797,58 @@ model ArrivedSafe {
 4. ⬜ مؤشر جودة النت في Header
 
 ---
+
+---
+Task ID: 15
+Agent: full-stack-developer
+Task: QA Round 15 - Fix Critical Issues from Audit Report
+
+Work Log:
+1. Fixed Session Creation Bug:
+   - Added missing `await` to `verifyToken()` calls in all API routes
+   - Fixed cookie name from `token` to `auth-token` in user settings API
+   - Made `encryptedId` optional in Prisma schema for session creation flow
+   - Ran `prisma generate` and `db:push` to sync schema
+
+2. Fixed Home Page - Real Session Creation:
+   - Added state for `activeEncryptedId` and `shareLink`
+   - Created `startLocationUpdates()` function to send GPS every 5 seconds
+   - Updated `handleConfirmShare()` to create real session via `/api/sessions/create`
+   - Updated `handleWhatsAppShare()` to create real session before sharing
+   - Updated `handleStopSharing()` to call `/api/sessions/[id]/stop`
+   - Removed all `demo123` hardcoded links from home page
+
+3. Fixed QuickShareWidget Component:
+   - Updated `generateAndShare()` to create real session via API
+   - Added location permission request and GPS fetching
+   - Added location update interval (every 5 seconds)
+   - Updated `handleStopSharing()` to clear interval properly
+   - Removed mock `quick-${Date.now()}` link generation
+
+4. Verified Already Fixed Components:
+   - `/share/page.tsx` - Already using real API
+   - `/share/[id]/page.tsx` - Already using real API polling
+
+Files Modified:
+- `/src/app/api/sessions/create/route.ts` - Added await to verifyToken
+- `/src/app/api/sessions/[id]/stop/route.ts` - Added await to verifyToken
+- `/src/app/api/sessions/route.ts` - Added await to verifyToken
+- `/src/app/api/user/settings/route.ts` - Fixed cookie name and await
+- `/prisma/schema.prisma` - Made encryptedId optional
+- `/src/app/page.tsx` - Real session creation, GPS updates
+- `/src/components/tamenny/quick-share-widget.tsx` - Real session creation
+
+Stage Summary:
+- Fixed 4 critical issues from audit report
+- Sessions now create properly in database
+- GPS location updates sent every 5 seconds during sharing
+- Removed all mock/hardcoded demo links
+- Linter passes with no errors
+- Server running on port 3000
+
+Remaining Issues (Priority for Next Phase):
+- SOS page still uses mock link generation
+- Chat messages not sent to API
+- Profile saves to local state only
+- Notifications loaded from hardcoded array
+- Trip details shows mock trip data

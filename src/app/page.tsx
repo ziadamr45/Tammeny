@@ -84,6 +84,9 @@ export default function HomePage() {
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [isOnline, setIsOnline] = useState(true); // Default to true for SSR consistency
+  const [activeEncryptedId, setActiveEncryptedId] = useState<string | null>(null);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
   // Calculate route info when destination is set
@@ -278,46 +281,155 @@ export default function HomePage() {
     setShowShareModal(true);
   };
 
+  // Start location updates for active session
+  const startLocationUpdates = useCallback((encryptedId: string) => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+    }
+
+    const sendLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          };
+          
+          setLocation({
+            lat: newLocation.lat,
+            lng: newLocation.lng,
+            name: "موقعك الحالي",
+          });
+
+          // Send to server
+          fetch('/api/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              encryptedId,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              speed: pos.coords.speed || 0,
+              accuracy: pos.coords.accuracy,
+            }),
+          }).catch((err) => {
+            console.error('Failed to send location:', err);
+          });
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    };
+
+    sendLocation();
+    locationIntervalRef.current = setInterval(sendLocation, 5000);
+  }, []);
+
+  // Stop location updates
+  const stopLocationUpdates = useCallback(() => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+  }, []);
+
   const handleConfirmShare = async () => {
     setShowShareModal(false);
-    setStatus("sharing");
-    setEta(selectedDuration === -1 ? 30 : selectedDuration);
     
-    // If destination is set, show route
-    if (destination) {
-      setShowRoute(true);
-      setAnimateMarker(true);
-      const dist = calculateDistance(location || DEFAULT_LOCATION, destination);
-      setDistance(dist);
-      setEta(calculateETA(dist, 30));
+    if (!location) {
+      toast.error("لم يتم تحديد موقعك بعد");
+      return;
     }
-    
-    // Generate share message
-    const shareMessage = `أنا مشارك موقعي معاك لمدة ${selectedDuration} دقيقة ⏱️
+
+    try {
+      // Create real session in database
+      const res = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: selectedDuration,
+          startLat: location.lat,
+          startLng: location.lng,
+          destName: destination?.name || null,
+          destLat: destination?.lat || null,
+          destLng: destination?.lng || null,
+          sessionType: selectedDuration === -1 ? 'until_arrival' : 'minutes',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'فشل في إنشاء الجلسة');
+      }
+
+      // Set active sharing state
+      setActiveEncryptedId(data.encryptedId);
+      setShareLink(data.shareUrl);
+      setStatus("sharing");
+      setEta(selectedDuration === -1 ? 30 : selectedDuration);
+
+      // Start location updates
+      startLocationUpdates(data.encryptedId);
+      
+      // If destination is set, show route
+      if (destination) {
+        setShowRoute(true);
+        setAnimateMarker(true);
+        const dist = calculateDistance(location, destination);
+        setDistance(dist);
+        setEta(calculateETA(dist, 30));
+      }
+      
+      // Generate share message with real link
+      const durationText = selectedDuration === -1 
+        ? "حتى الوصول" 
+        : selectedDuration >= 60 
+          ? `${selectedDuration / 60} ساعة` 
+          : `${selectedDuration} دقيقة`;
+      
+      const shareMessage = `أنا مشارك موقعي معاك لمدة ${durationText} ⏱️
 تابعني لحظة بلحظة من هنا 👇
-${window.location.origin}/share/demo123
+${data.shareUrl}
 ولو الرابط فتح عندك متأخر، حمّل التطبيق عشان تشوفني مباشر 📍`;
 
-    // Try to use Web Share API
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "طمنّي - مشاركة الموقع",
-          text: shareMessage,
-          url: `${window.location.origin}/share/demo123`,
-        });
-        toast.success("تمت المشاركة بنجاح!");
-      } catch {
-        // User cancelled or error
+      // Try to use Web Share API
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: "طمنّي - مشاركة الموقع",
+            text: shareMessage,
+            url: data.shareUrl,
+          });
+          toast.success("تمت المشاركة بنجاح!");
+        } catch {
+          // User cancelled
+        }
+      } else {
+        await navigator.clipboard.writeText(shareMessage);
+        toast.success("تم نسخ رابط المشاركة!");
       }
-    } else {
-      // Fallback: copy to clipboard
-      await navigator.clipboard.writeText(shareMessage);
-      toast.success("تم نسخ رابط المشاركة!");
+    } catch (error) {
+      console.error('Share error:', error);
+      toast.error(error instanceof Error ? error.message : "فشل إنشاء الجلسة");
     }
   };
 
-  const handleStopSharing = () => {
+  const handleStopSharing = async () => {
+    stopLocationUpdates();
+    
+    if (activeEncryptedId) {
+      try {
+        await fetch(`/api/sessions/${encodeURIComponent(activeEncryptedId)}/stop`, {
+          method: 'POST',
+        });
+      } catch (error) {
+        console.error('Error stopping session:', error);
+      }
+    }
+    
     setStatus("idle");
     setDestination(null);
     setDistance(0);
@@ -328,6 +440,8 @@ ${window.location.origin}/share/demo123
     setAnimateMarker(false);
     setRouteProgress(0);
     setWaypoints([]);
+    setActiveEncryptedId(null);
+    setShareLink(null);
     toast.success("تم إيقاف المشاركة");
   };
 
@@ -386,23 +500,53 @@ ${window.location.origin}/share/demo123
   };
 
   // WhatsApp share handler
-  const handleWhatsAppShare = () => {
+  const handleWhatsAppShare = async () => {
     if (!location) {
       toast.error("لم يتم تحديد موقعك بعد");
       return;
     }
 
-    const shareLink = `${window.location.origin}/share/demo123`;
-    const message = `أنا مشارك موقعي معاك على طمنّي 📍
+    try {
+      // Create real session
+      const res = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: 30,
+          startLat: location.lat,
+          startLng: location.lng,
+          sessionType: 'minutes',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'فشل في إنشاء الجلسة');
+      }
+
+      // Set active sharing state
+      setActiveEncryptedId(data.encryptedId);
+      setShareLink(data.shareUrl);
+      setStatus("sharing");
+
+      // Start location updates
+      startLocationUpdates(data.encryptedId);
+
+      const message = `أنا مشارك موقعي معاك على طمنّي 📍
 موقعي الحالي: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
 تابعني لحظة بلحظة من هنا 👇
-${shareLink}
+${data.shareUrl}
 
 حمّل تطبيق طمنّي للأمان 🛡️`;
 
-    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, "_blank");
-    toast.success("جاري فتح واتساب...");
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, "_blank");
+      toast.success("جاري فتح واتساب...");
+    } catch (error) {
+      console.error('WhatsApp share error:', error);
+      toast.error("فشل إنشاء رابط المشاركة");
+    }
   };
 
   const durationOptions = [

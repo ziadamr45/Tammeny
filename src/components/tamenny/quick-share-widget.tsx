@@ -137,16 +137,68 @@ export function QuickShareWidget({
     setShowShareModal(true);
 
     try {
-      // Simulate generating share link
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Get current location
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+      });
 
-      const link = `${window.location.origin}/share/quick-${Date.now()}`;
-      setShareLink(link);
+      const { latitude, longitude } = position.coords;
+
+      // Create real session in database
+      const res = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: selectedDuration || 5,
+          startLat: latitude,
+          startLng: longitude,
+          sessionType: (selectedDuration || 5) === -1 ? 'until_arrival' : 'minutes',
+          destName: selectedDestination?.name || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'فشل في إنشاء الجلسة');
+      }
+
+      setShareLink(data.shareUrl);
 
       // Call onShareStart callback
       if (onShareStart && selectedDuration) {
         onShareStart(selectedDuration, selectedDestination || undefined);
       }
+
+      // Start location updates
+      const sendLocation = () => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            fetch('/api/location', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                encryptedId: data.encryptedId,
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                speed: pos.coords.speed || 0,
+                accuracy: pos.coords.accuracy,
+              }),
+            }).catch(console.error);
+          },
+          console.error,
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      };
+
+      sendLocation();
+      const intervalId = setInterval(sendLocation, 5000);
+      
+      // Store interval ID for cleanup
+      (window as Window & { __shareInterval?: NodeJS.Timeout }).__shareInterval = intervalId;
 
       // Try to use Web Share API
       if (navigator.share) {
@@ -155,16 +207,18 @@ export function QuickShareWidget({
             title: "طمنّي - مشاركة الموقع",
             text: `أنا مشارك موقعي معاك لمدة ${formatArabicDuration(selectedDuration || 5, "minutes")}
 تابعني لحظة بلحظة من هنا 👇
-${link}`,
-            url: link,
+${data.shareUrl}`,
+            url: data.shareUrl,
           });
           toast.success("تمت المشاركة بنجاح!");
         } catch {
           // User cancelled
         }
       }
-    } catch {
-      toast.error("حدث خطأ أثناء إنشاء رابط المشاركة");
+    } catch (error) {
+      console.error('Quick share error:', error);
+      toast.error(error instanceof Error ? error.message : "حدث خطأ أثناء إنشاء رابط المشاركة");
+      setShowShareModal(false);
     } finally {
       setIsGeneratingLink(false);
     }
@@ -181,7 +235,14 @@ ${link}`,
   };
 
   // Stop sharing
-  const handleStopSharing = () => {
+  const handleStopSharing = async () => {
+    // Clear location update interval
+    const intervalId = (window as Window & { __shareInterval?: NodeJS.Timeout }).__shareInterval;
+    if (intervalId) {
+      clearInterval(intervalId);
+      (window as Window & { __shareInterval?: NodeJS.Timeout }).__shareInterval = undefined;
+    }
+    
     setShowShareModal(false);
     setSelectedDuration(null);
     setSelectedDestination(null);
