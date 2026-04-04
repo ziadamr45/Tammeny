@@ -106,9 +106,28 @@ export default function SafeZonesPage() {
     notifyOnExit: true,
     childAlertEnabled: false,
     childName: null,
-    latitude: 30.0444,
-    longitude: 31.2357,
+    latitude: 0,
+    longitude: 0,
   });
+
+  // Get user's GPS location for new zone
+  const getUserLocationForZone = useCallback(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setNewZone(prev => ({
+            ...prev,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          }));
+        },
+        () => {
+          // Keep 0,0 — user will need to enter manually
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -268,9 +287,10 @@ export default function SafeZonesPage() {
       notifyOnExit: true,
       childAlertEnabled: false,
       childName: null,
-      latitude: 30.0444,
-      longitude: 31.2357,
+      latitude: 0,
+      longitude: 0,
     });
+    getUserLocationForZone();
   };
 
   const safeZones = zones.filter((z) => z.color === "safe");
@@ -301,7 +321,10 @@ export default function SafeZonesPage() {
                 </p>
               </div>
               <Button
-                onClick={() => setShowAddDialog(true)}
+                onClick={() => {
+                  getUserLocationForZone();
+                  setShowAddDialog(true);
+                }}
                 className="bg-primary rounded-xl"
               >
                 <Plus className="w-4 h-4 ml-2" />
@@ -802,8 +825,8 @@ export default function SafeZonesPage() {
             {showMapPreview && (
               <DynamicMap
                 center={{
-                  lat: zones.find((z) => z.id === showMapPreview)?.latitude || 30.0444,
-                  lng: zones.find((z) => z.id === showMapPreview)?.longitude || 31.2357,
+                  lat: zones.find((z) => z.id === showMapPreview)?.latitude || 0,
+                  lng: zones.find((z) => z.id === showMapPreview)?.longitude || 0,
                 }}
                 className="h-[280px] w-full"
                 showUserLocation={false}

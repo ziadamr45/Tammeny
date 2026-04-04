@@ -100,6 +100,7 @@ export default function DashboardPage() {
   const [weeklyData, setWeeklyData] = useState<{ day: string; trips: number; distance: number }[]>([]);
   const [monthlyData, setMonthlyData] = useState<{ week: string; trips: number; distance: number }[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
+  const [safetyScore, setSafetyScore] = useState(0);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -181,6 +182,25 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [isAuthenticated]);
 
+  // Fetch safety score from API
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    
+    const fetchSafetyScore = async () => {
+      try {
+        const res = await fetch('/api/safety-score');
+        const data = await res.json();
+        if (data.success) {
+          setSafetyScore(data.score);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    
+    fetchSafetyScore();
+  }, [isAuthenticated]);
+
   const handleExport = () => {
     if (trips.length === 0) {
       toast.error("لا توجد رحلات لتصديرها");
@@ -231,9 +251,6 @@ export default function DashboardPage() {
       default: return <Car className="w-4 h-4" />;
     }
   };
-
-  // Calculate safety score (based on completed trips)
-  const safetyScore = stats.totalTrips > 0 ? Math.min(100, stats.totalTrips * 2) : 0;
 
   // Auth Loading
   if (authLoading) {

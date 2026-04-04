@@ -502,7 +502,9 @@ export default function AchievementsPage() {
     useState<Achievement | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [achievements] = useState<Achievement[]>(achievementsData);
+  const [achievements, setAchievements] = useState<Achievement[]>(achievementsData);
+  const [loadingAchievements, setLoadingAchievements] = useState(true);
+  const [safetyScore, setSafetyScore] = useState(0);
   const [filter, setFilter] = useState<"all" | "unlocked" | "locked">("all");
 
   // Redirect if not authenticated
@@ -511,6 +513,51 @@ export default function AchievementsPage() {
       router.push("/login");
     }
   }, [authLoading, isAuthenticated, router]);
+
+  // Fetch achievements from API
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const fetchAchievements = async () => {
+      try {
+        setLoadingAchievements(true);
+        const response = await fetch('/api/achievements');
+        const data = await response.json();
+
+        if (data.success) {
+          // Merge API data into the existing achievementsData template
+          setAchievements(prev => prev.map(achievement => {
+            const apiAchievement = data.achievements.find(
+              (a: { id: string; progress: number; total: number; unlocked: boolean }) => a.id === achievement.id
+            );
+            if (!apiAchievement) return achievement;
+            return {
+              ...achievement,
+              progress: apiAchievement.progress,
+              total: apiAchievement.total,
+              unlocked: apiAchievement.unlocked,
+              unlockedAt: apiAchievement.unlocked ? new Date().toISOString().split('T')[0] : undefined,
+            };
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching achievements:', error);
+      } finally {
+        setLoadingAchievements(false);
+      }
+    };
+
+    fetchAchievements();
+  }, [isAuthenticated]);
+
+  // Fetch safety score from API
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetch('/api/safety-score')
+      .then(r => r.json())
+      .then(data => { if (data.success) setSafetyScore(data.score); })
+      .catch(() => {});
+  }, [isAuthenticated]);
 
   // Show confetti on first visit
   useEffect(() => {
@@ -533,7 +580,6 @@ export default function AchievementsPage() {
       const points = parseInt(a.reward.replace(/[^0-9]/g, ""));
       return sum + (isNaN(points) ? 0 : points);
     }, 0);
-  const safetyScore = Math.min(100, Math.floor(totalUnlocked * 8 + totalPoints / 2));
 
   // Filter achievements
   const filteredAchievements = achievements.filter((a) => {
@@ -558,7 +604,7 @@ export default function AchievementsPage() {
   };
 
   // Auth Loading
-  if (authLoading) {
+  if (authLoading || loadingAchievements) {
     return (
       <main className="min-h-screen bg-background pb-20 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

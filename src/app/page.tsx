@@ -977,12 +977,7 @@ ${data.shareUrl}
         {/* Quick Share Widget */}
         {status === "idle" && (
           <QuickShareWidget
-            onShareStart={(duration) => {
-              setSelectedDuration(duration);
-              setStatus("sharing");
-              setEta(duration);
-              toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
-            }}
+            onShareStart={handleQuickShare}
           />
         )}
 

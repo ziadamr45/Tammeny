@@ -94,10 +94,22 @@ export default function SharePage() {
             lng: position.coords.longitude,
           };
         },
-        () => {
-          // Use mock location for Cairo
-          setLocation({ lat: 30.0444, lng: 31.2357 });
-          lastLocationRef.current = { lat: 30.0444, lng: 31.2357 };
+        async () => {
+          // Try to get last known location from user profile
+          try {
+            const res = await fetch('/api/user/location');
+            const data = await res.json();
+            if (data.success && data.lastLocation) {
+              setLocation({ lat: data.lastLocation.lat, lng: data.lastLocation.lng });
+              lastLocationRef.current = { lat: data.lastLocation.lat, lng: data.lastLocation.lng };
+            } else {
+              setLocation(null);
+              lastLocationRef.current = null;
+            }
+          } catch {
+            setLocation(null);
+            lastLocationRef.current = null;
+          }
         },
         { enableHighAccuracy: true, timeout: 10000 }
       );
@@ -165,6 +177,28 @@ export default function SharePage() {
       stopLocationUpdates();
     };
   }, [stopLocationUpdates]);
+
+  // Viewer count polling
+  useEffect(() => {
+    if (!activeEncryptedId || !isSharingActive) return;
+
+    const checkViewers = async () => {
+      try {
+        const res = await fetch(`/api/sessions/${encodeURIComponent(activeEncryptedId)}/viewers`);
+        const data = await res.json();
+        if (data.success) {
+          setViewerCount(data.viewerCount);
+        }
+      } catch {
+        // Silently fail — viewer count is non-critical
+      }
+    };
+
+    // Check immediately and then every 15 seconds
+    checkViewers();
+    const interval = setInterval(checkViewers, 15000);
+    return () => clearInterval(interval);
+  }, [activeEncryptedId, isSharingActive]);
 
   // Stop sharing function
   const stopSharing = async () => {

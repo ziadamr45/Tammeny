@@ -46,18 +46,6 @@ interface LiveLocationPreviewProps {
   onExpandChange?: (expanded: boolean) => void;
 }
 
-// Cairo default location
-const DEFAULT_LOCATION: LocationData = {
-  lat: 30.0444,
-  lng: 31.2357,
-  accuracy: 15,
-  altitude: 75,
-  altitudeAccuracy: 10,
-  speed: 0,
-  heading: 0,
-  timestamp: new Date(),
-};
-
 export function LiveLocationPreview({
   className,
   showShareButton = true,
@@ -86,7 +74,7 @@ export function LiveLocationPreview({
         setError("خدمة الموقع غير متاحة في جهازك");
         setIsLoading(false);
         setIsRefreshing(false);
-        setLocation(DEFAULT_LOCATION);
+        setLocation(null);
       }
       return;
     }
@@ -111,10 +99,10 @@ export function LiveLocationPreview({
       },
       () => {
         if (isMountedRef.current) {
-          setError("تعذر الحصول على الموقع. يتم استخدام موقع افتراضي.");
+          setError("تعذر تحديد موقعك الحالي");
           setIsLoading(false);
           setIsRefreshing(false);
-          setLocation(DEFAULT_LOCATION);
+          setLocation(null);
         }
       },
       {
@@ -452,7 +440,7 @@ export function LiveLocationCompact({
       // Use setTimeout to defer setState to avoid lint error
       const timer = setTimeout(() => {
         if (isMountedRef.current) {
-          setLocation(DEFAULT_LOCATION);
+          setLocation(null);
           setIsLoading(false);
         }
       }, 0);
@@ -479,7 +467,7 @@ export function LiveLocationCompact({
       },
       () => {
         if (isMountedRef.current) {
-          setLocation(DEFAULT_LOCATION);
+          setLocation(null);
           setIsLoading(false);
         }
       },

@@ -85,79 +85,7 @@ interface FilterState {
   clusterMarkers: boolean;
 }
 
-// Mock location history data
-const mockLocationHistory: LocationHistoryItem[] = [
-  {
-    id: "1",
-    lat: 30.0444,
-    lng: 31.2357,
-    name: "المنزل",
-    type: "home",
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    duration: 480, // 8 hours
-    address: "شارع التحرير، الدور الرابع",
-  },
-  {
-    id: "2",
-    lat: 30.0480,
-    lng: 31.2395,
-    name: "المكتب",
-    type: "work",
-    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000), // 8 hours ago
-    duration: 60,
-    address: "برج القاهرة، الطابق ١٥",
-  },
-  {
-    id: "3",
-    lat: 30.0500,
-    lng: 31.2400,
-    name: "منزل الأهل",
-    type: "family",
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000), // 1 day ago
-    duration: 180,
-    address: "حي الزمالك",
-  },
-  {
-    id: "4",
-    lat: 30.0450,
-    lng: 31.2350,
-    name: "جامعة القاهرة",
-    type: "school",
-    timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    duration: 240,
-    address: "شارع الجامعة، الجيزة",
-  },
-  {
-    id: "5",
-    lat: 30.0420,
-    lng: 31.2330,
-    name: "مول مصر",
-    type: "shopping",
-    timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    duration: 120,
-    address: "طريق مصر الإسكندرية الصحراوي",
-  },
-  {
-    id: "6",
-    lat: 30.0400,
-    lng: 31.2300,
-    name: "مقهى المفضلة",
-    type: "favorite",
-    timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), // 4 days ago
-    duration: 45,
-    address: "شارع طلعت حرب",
-  },
-  {
-    id: "7",
-    lat: 30.0380,
-    lng: 31.2280,
-    name: "محطة مترو السادات",
-    type: "transit",
-    timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-    duration: 15,
-    address: "ميدان التحرير",
-  },
-];
+
 
 // Location type config
 const locationTypeConfig: Record<LocationType, { label: string; icon: React.ReactNode; color: string; bgColor: string }> = {
@@ -197,24 +125,55 @@ export default function LocationHistoryMapPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
-  // Load location history
+  // Load location history from API
   useEffect(() => {
     if (!isAuthenticated) return;
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLocationHistory(mockLocationHistory);
-      setLoading(false);
-      
-      // Set initial map center
-      if (mockLocationHistory.length > 0) {
-        setMapCenter({
-          lat: mockLocationHistory[0].lat,
-          lng: mockLocationHistory[0].lng,
-        });
+
+    const fetchLocationHistory = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/location-history?range=${filters.dateRange}`);
+        const data = await response.json();
+
+        if (data.success) {
+          // Map API locations to LocationHistoryItem format
+          const historyItems: LocationHistoryItem[] = (data.locations || []).map((loc: {
+            id: string; lat: number; lng: number; sessionId: string;
+            timestamp: string; speed: number | null; accuracy: number | null;
+          }) => {
+            // Find the session this location belongs to
+            const session = (data.sessions || []).find((s: { id: string; destName: string | null }) => s.id === loc.sessionId);
+            return {
+              id: loc.id,
+              lat: loc.lat,
+              lng: loc.lng,
+              name: session?.destName || 'موقع مسجل',
+              type: 'other' as LocationType,
+              timestamp: new Date(loc.timestamp),
+              duration: 0,
+              distance: undefined,
+              address: undefined,
+            };
+          });
+
+          setLocationHistory(historyItems);
+
+          // Set map center to most recent location
+          if (historyItems.length > 0) {
+            setMapCenter({ lat: historyItems[0].lat, lng: historyItems[0].lng });
+          }
+        } else {
+          console.error('Failed to fetch location history:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching location history:', error);
+      } finally {
+        setLoading(false);
       }
-    }, 1000);
-  }, [isAuthenticated]);
+    };
+
+    fetchLocationHistory();
+  }, [isAuthenticated, filters.dateRange]);
 
   // Filter locations
   const filteredLocations = useMemo(() => {
