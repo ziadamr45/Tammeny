@@ -813,3 +813,257 @@ All functions are in `/lib/arabic-numerals.ts`:
 ## Commit
 - Message: "fix: apply Arabic numerals consistently across all user-facing numbers"
 - Files changed: 2 files (notifications + groups pages)
+
+---
+
+## Phase 14: Comprehensive Bug Fixes Round (Completed 2025-01-17)
+
+### 🔴 Critical Bugs Fixed (5 fixes)
+
+#### 1. Database Provider Conflict ✅
+**Problem:** `prisma/schema.prisma` يستخدم PostgreSQL لكن `.env` يحتوي على SQLite path.
+
+**Fix:**
+- Updated schema to use `env("DATABASE_PROVIDER")` for flexibility
+- Added `DATABASE_PROVIDER` to `.env` and `.env.example`
+- Removed `directUrl` (PostgreSQL-specific)
+- Added comments explaining how to switch between PostgreSQL and SQLite
+
+#### 2. SOS - Real SMS Sending ✅
+**Problem:** SOS claimed to notify contacts but didn't send any real messages.
+
+**Fix:**
+- Created `/lib/sms.ts` - Twilio SMS integration library
+- `sendSMSAlert()` function with Arabic messages (sos/arrived/test types)
+- `sendBulkSMSAlerts()` for parallel sending
+- Graceful fallback when Twilio not configured
+- Updated `/api/sos/route.ts` to use real SMS
+
+#### 3. Arrived Safe - Real SMS Sending ✅
+**Problem:** Only console.log, no real notifications.
+
+**Fix:**
+- Updated `/api/arrived-safe/route.ts` to use `sendBulkSMSAlerts`
+- Updates `smsSent` field with actual result
+- Creates notification records
+
+#### 4. Test Alert - Real SMS Sending ✅
+**Problem:** Showed success message without actually sending.
+
+**Fix:**
+- Updated `/api/emergency-contacts/test-alert/route.ts`
+- Sends real SMS with `type: 'test'`
+- Returns warnings if SMS failed
+- Shows clear message about SMS service status
+
+#### 5. Demo User Security ✅
+**Problem:** Open endpoint without protection.
+
+**Fix:**
+- Added environment checks to `/api/demo-user/route.ts`
+- Disabled in production unless `ENABLE_DEMO_USER=true`
+- Prevents unauthorized access to demo account
+
+---
+
+### 🟡 Functional Issues Fixed (5 fixes)
+
+#### 6. Geofencing for Safe Zones ✅
+**Problem:** Safe zones existed but no background tracking.
+
+**Fix:**
+- Created `/api/safe-zones/event/route.ts` - Event handling API
+- Updated `public/sw.js` with geofence monitoring:
+  - Haversine distance calculation
+  - 1-minute interval position checks
+  - State tracking with IndexedDB
+  - Local notifications on enter/exit
+- Updated `/app/safe-zones/page.tsx` with monitoring toggle
+
+#### 7. Stealth Mode & Battery Saver ✅
+**Problem:** Toggles didn't affect app behavior.
+
+**Fix:**
+- Updated `/api/location/route.ts` to check `stealthMode`
+  - When enabled: location points NOT saved to DB
+- Updated `/app/page.tsx` and `/app/share/page.tsx`
+  - Battery Saver: updates every 30s instead of 5s
+  - Fetches settings from `/api/user/settings`
+
+#### 8. Chat Real-time with Ably ✅
+**Problem:** Real-time messaging not working.
+
+**Fix:**
+- Updated `/api/ably/token/route.ts` - simplified token response
+- Updated `/app/chat/page.tsx`:
+  - Ably client initialization
+  - Subscription to user notifications channel
+  - Real-time message reception
+  - Connection status indicator (WiFi icon)
+  - Typing indicators
+
+#### 9. History API - transportMode Missing ✅
+**Problem:** API didn't return transportMode and locationType.
+
+**Fix:**
+- Updated `/api/trips/route.ts` to select all fields
+- Added `transportMode` and `locationType` to response
+
+#### 10. Dashboard Empty State ✅
+**Problem:** Empty charts without clear message.
+
+**Fix:**
+- Added empty state for weekly chart
+- Added empty state for monthly chart
+- Shows: "لا توجد رحلات هذا الأسبوع/الشهر"
+
+---
+
+### 🟠 Fake Data Fixed (2 fixes)
+
+#### 11. Compare Page Claims ✅
+**Problem:** Unrealistic claims ("ذكي - توفير 40%", "يعمل أوفلاين", etc.).
+
+**Fix:**
+- Updated `/app/compare/page.tsx` with accurate claims:
+  - "متوفر (يقلل تكرار التحديث)"
+  - "جزئي — sync عند عودة الإنترنت"
+  - "الموقع محمي بتشفير AES"
+
+#### 12. Achievements Skeleton Loading ✅
+**Problem:** Showed zeros while loading.
+
+**Fix:**
+- Added skeleton loading to `/app/achievements/page.tsx`
+- Header, score widget, stats, and cards skeletons
+- Progressive animation delays
+
+---
+
+### 🔵 UI/UX Improvements (8 fixes)
+
+#### 13. Main Page Skeleton Loading ✅
+**Problem:** Single spinner while loading.
+
+**Fix:**
+- Added comprehensive skeleton loaders to `/app/page.tsx`
+- Map skeleton, status bar, cards, buttons
+
+#### 14. Arabic Numbers Consistency ✅
+**Problem:** Mixed Arabic/Western numerals.
+
+**Fix:**
+- Updated `/app/notifications/page.tsx` - time ago, unread count
+- Updated `/app/groups/page.tsx` - all statistics
+- History page already correct
+
+#### 15. SOS Map Without GPS ✅
+**Problem:** Empty map when GPS denied.
+
+**Fix:**
+- Added empty state to `/app/sos/page.tsx`
+- Animated MapPin icon
+- Clear message: "لم يتم تحديد موقعك"
+- Retry button
+
+#### 16. Profile Avatar Upload ✅
+**Problem:** Button existed but no functionality.
+
+**Fix:**
+- Updated `/api/user/route.ts` for base64 avatar storage
+- Updated `/app/profile/page.tsx`:
+  - File input with image validation
+  - Automatic compression
+  - Upload progress indicator
+  - Error handling
+
+#### 17. Leaflet CSS from node_modules ✅
+**Problem:** External CDN dependency.
+
+**Fix:**
+- Removed CDN link from `/app/layout.tsx`
+- Added `@import "leaflet/dist/leaflet.css"` to `/app/globals.css`
+
+#### 18. Session Cleanup Endpoint ✅
+**Problem:** Expired sessions accumulating.
+
+**Fix:**
+- Created `/api/sessions/cleanup/route.ts`
+- Expires old sessions
+- Deletes 30+ day old location points
+- Protected by CRON_SECRET
+
+#### 19. Register Validation ✅
+**Problem:** No email/password validation.
+
+**Fix:**
+- Added Zod schema to `/api/auth/register/route.ts`
+- Name: 2-100 chars
+- Email: valid format
+- Password: 8+ chars, letters + numbers
+
+#### 20. Environment Variables ✅
+**Fix:**
+- Updated `.env.example` with all required variables:
+  - DATABASE_PROVIDER, DATABASE_URL
+  - JWT_SECRET, ENCRYPTION_KEY
+  - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+  - ABLY_API_KEY
+  - LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
+  - NEXT_PUBLIC_APP_NAME, NEXT_PUBLIC_APP_URL
+  - ENABLE_DEMO_USER, CRON_SECRET
+  - Social media links (optional)
+
+---
+
+## Commit
+- Commit: 220e9af
+- Message: "fix: comprehensive bug fixes and improvements (20 fixes)"
+- Files changed: 30 files, 2136 insertions, 214 deletions
+- New files created:
+  - `/api/safe-zones/event/route.ts`
+  - `/api/sessions/cleanup/route.ts`
+  - `/lib/sms.ts`
+
+---
+
+## New API Endpoints Created
+- `POST /api/safe-zones/event` - Geofence events from service worker
+- `GET /api/sessions/cleanup` - Cron job for cleanup (protected by CRON_SECRET)
+- `GET /api/ably/token` - Generate Ably token for real-time
+
+---
+
+## Environment Variables Required
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_PROVIDER` | "postgresql" or "sqlite" |
+| `DATABASE_URL` | Database connection string |
+| `JWT_SECRET` | Secret for JWT tokens |
+| `ENCRYPTION_KEY` | 32-char encryption key |
+| `TWILIO_ACCOUNT_SID` | Twilio account (optional) |
+| `TWILIO_AUTH_TOKEN` | Twilio auth (optional) |
+| `TWILIO_PHONE_NUMBER` | Twilio phone (optional) |
+| `ABLY_API_KEY` | Ably real-time API |
+| `LIVEKIT_URL` | LiveKit server URL |
+| `LIVEKIT_API_KEY` | LiveKit API key |
+| `LIVEKIT_API_SECRET` | LiveKit secret |
+| `ENABLE_DEMO_USER` | "true" to enable demo |
+| `CRON_SECRET` | Secret for cleanup cron |
+
+---
+
+## Summary
+
+**Total Fixes:** 20
+- Critical: 5 ✅
+- Functional: 5 ✅
+- Fake Data: 2 ✅
+- UI/UX: 8 ✅
+
+**Files Modified:** 30
+**Lines Added:** 2136
+**Lines Removed:** 214
+
+All fixes have been tested with ESLint and pushed to GitHub.
