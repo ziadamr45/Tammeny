@@ -13,7 +13,7 @@ export function useAbly(options: UseAblyOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const clientRef = useRef<Ably.Realtime | null>(null);
-  const channelsRef = useRef<Map<string, Ably.Types.RealtimeChannel>>(new Map());
+  const channelsRef = useRef<Map<string, any>>(new Map());
 
   // Initialize Ably client
   useEffect(() => {
@@ -67,7 +67,6 @@ export function useAbly(options: UseAblyOptions = {}) {
       mounted = false;
       // Close all channels
       channelsRef.current.forEach((channel) => {
-        channel.unsubscribe();
         channel.detach();
       });
       channelsRef.current.clear();
@@ -83,7 +82,7 @@ export function useAbly(options: UseAblyOptions = {}) {
   const subscribe = useCallback((
     channelName: string,
     eventName: string,
-    callback: (message: Ably.Types.Message) => void
+    callback: (message: any) => void
   ) => {
     if (!clientRef.current) return () => {};
 

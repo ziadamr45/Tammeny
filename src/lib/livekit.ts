@@ -18,11 +18,11 @@ export function getRoomServiceClient(): RoomServiceClient | null {
 }
 
 // Generate access token for a participant
-export function generateLiveKitToken(
+export async function generateLiveKitToken(
   roomName: string,
   participantName: string,
   participantIdentity: string
-): string | null {
+): Promise<string | null> {
   if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
     return null;
   }

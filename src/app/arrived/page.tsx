@@ -14,7 +14,7 @@ import { toArabicNumerals, formatArabicDate, formatArabicTime } from "@/lib/arab
 
 export default function ArrivedSafePage() {
   const router = useRouter();
-  const { isAuthenticated, authLoading, user } = useAuth();
+  const { isAuthenticated, loading: authLoading, user } = useAuth();
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [locationName, setLocationName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +30,8 @@ export default function ArrivedSafePage() {
     locationName: string | null;
     createdAt: Date;
   }>>([]);
+
+  const authChecked = !authLoading && isAuthenticated;
 
   // Check authentication
   useEffect(() => {
@@ -59,9 +61,7 @@ export default function ArrivedSafePage() {
         { enableHighAccuracy: true }
       );
     }
-  }, [authLoading]);
-
-  const authChecked = !authLoading && isAuthenticated;
+  }, [authChecked]);
 
   // Fetch emergency contacts count and history
   useEffect(() => {
@@ -218,8 +218,7 @@ export default function ArrivedSafePage() {
               <div className="h-48 relative">
                 {location ? (
                   <DynamicMap
-                    center={[location.lat, location.lng]}
-                    zoom={15}
+                    center={{ lat: location.lat, lng: location.lng }}
                     className="h-full w-full"
                   />
                 ) : (

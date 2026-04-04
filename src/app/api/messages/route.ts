@@ -27,16 +27,20 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
           take: 1
         },
-        allowedUsers: {
-          include: {
-            user: {
-              select: { id: true, name: true, avatar: true }
-            }
-          }
-        }
+        allowedUsers: true
       },
       orderBy: { startedAt: 'desc' }
     });
+
+    // Get user info for allowed users
+    const allowedUserIds = sessions.flatMap(s => 
+      s.allowedUsers.filter(a => a.userId).map(a => a.userId as string)
+    );
+    const users = await db.user.findMany({
+      where: { id: { in: allowedUserIds } },
+      select: { id: true, name: true, avatar: true }
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
 
     // Build conversations list
     const conversations: {
@@ -53,18 +57,21 @@ export async function GET(request: NextRequest) {
     for (const session of sessions) {
       if (session.allowedUsers.length > 0) {
         for (const allowed of session.allowedUsers) {
-          if (allowed.user) {
-            const lastMessage = session.messages[0];
-            conversations.push({
-              id: allowed.id,
-              sessionId: session.id,
-              name: allowed.user.name,
-              avatar: allowed.user.avatar,
-              lastMessage: lastMessage?.content || 'بدأت مشاركة الموقع',
-              time: lastMessage ? formatTimeAgo(lastMessage.createdAt) : formatTimeAgo(session.startedAt),
-              unread: session.messages.filter(m => !m.isRead && m.senderId !== user.userId).length,
-              online: false, // Would need real-time status
-            });
+          if (allowed.userId) {
+            const userData = userMap.get(allowed.userId);
+            if (userData) {
+              const lastMessage = session.messages[0];
+              conversations.push({
+                id: allowed.id,
+                sessionId: session.id,
+                name: userData.name,
+                avatar: userData.avatar,
+                lastMessage: lastMessage?.content || 'بدأت مشاركة الموقع',
+                time: lastMessage ? formatTimeAgo(lastMessage.createdAt) : formatTimeAgo(session.startedAt),
+                unread: session.messages.filter(m => !m.isRead && m.senderId !== user.userId).length,
+                online: false, // Would need real-time status
+              });
+            }
           }
         }
       }

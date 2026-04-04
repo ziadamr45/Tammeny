@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate token for the participant
-    const token = generateLiveKitToken(
+    const token = await generateLiveKitToken(
       room,
       user.name,
       user.userId

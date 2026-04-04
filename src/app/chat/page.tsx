@@ -377,7 +377,7 @@ function ChatView({
   onBack: () => void;
   isRecording: boolean;
   setIsRecording: (val: boolean) => void;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesEndRef: React.RefObject<HTMLDivElement | null>;
   showQuickReplies: boolean;
   setShowQuickReplies: (val: boolean) => void;
   onQuickReply: (reply: string) => void;

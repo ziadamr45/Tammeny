@@ -16,7 +16,7 @@ export function getAblyServer(): Ably.Rest {
 }
 
 // Generate Ably token for client authentication
-export async function getAblyTokenRequest(userId: string): Promise<Ably.Types.TokenRequest> {
+export async function getAblyTokenRequest(userId: string): Promise<any> {
   const ably = getAblyServer();
 
   return ably.auth.createTokenRequest({

@@ -46,13 +46,7 @@ export async function GET(request: NextRequest) {
     const trips = await db.session.findMany({
       where,
       include: {
-        allowedUsers: {
-          include: {
-            user: {
-              select: { id: true, name: true }
-            }
-          }
-        },
+        allowedUsers: true,
         locations: {
           orderBy: { timestamp: 'asc' },
           take: 1
@@ -60,6 +54,16 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { startedAt: 'desc' }
     });
+
+    // Get user info for allowed users
+    const allowedUserIds = trips.flatMap(t => 
+      t.allowedUsers.filter(a => a.userId).map(a => a.userId as string)
+    );
+    const users = await db.user.findMany({
+      where: { id: { in: allowedUserIds } },
+      select: { id: true, name: true }
+    });
+    const userMap = new Map(users.map(u => [u.id, u]));
 
     // Format trips for response
     const formattedTrips = trips.map(trip => ({
@@ -72,8 +76,9 @@ export async function GET(request: NextRequest) {
       duration: Math.round(trip.totalDuration / 60), // Convert to minutes
       status: trip.status,
       sharedWith: trip.allowedUsers
-        .filter(au => au.user)
-        .map(au => au.user!.name),
+        .filter(au => au.userId)
+        .map(au => userMap.get(au.userId!)?.name)
+        .filter((name): name is string => !!name),
       transportMode: 'car', // Default
       locationType: 'other', // Default
     }));

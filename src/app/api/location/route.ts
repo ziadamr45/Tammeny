@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Calculate ETA if destination exists
-    let eta = null;
+    let eta: number | null = null;
     if (session.destLat && session.destLng) {
       const distance = haversineDistance(lat, lng, session.destLat, session.destLng);
       eta = calculateETA(distance, speed ? speed * 3.6 : 30); // Convert m/s to km/h
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate current distance and ETA
     let distance = 0;
-    let eta = null;
+    let eta: number | null = null;
     
     if (session.destLat && session.destLng && session.currentLat && session.currentLng) {
       distance = haversineDistance(
@@ -172,12 +172,16 @@ export async function GET(request: NextRequest) {
         status: session.status,
         creatorName: session.creator.name,
         creatorAvatar: session.creator.avatar,
-        currentLat: session.isGhostMode 
-          ? Math.round(session.currentLat * 100) / 100 
-          : session.currentLat,
-        currentLng: session.isGhostMode 
-          ? Math.round(session.currentLng * 100) / 100 
-          : session.currentLng,
+        currentLat: session.currentLat 
+          ? (session.isGhostMode 
+            ? Math.round(session.currentLat * 100) / 100 
+            : session.currentLat)
+          : null,
+        currentLng: session.currentLng 
+          ? (session.isGhostMode 
+            ? Math.round(session.currentLng * 100) / 100 
+            : session.currentLng)
+          : null,
         destLat: session.destLat,
         destLng: session.destLng,
         destName: session.destName,

@@ -77,6 +77,7 @@ export function MapComponent({
 }: MapComponentProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
   const [leafletLoaded, setLeafletLoaded] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
@@ -150,17 +151,19 @@ export function MapComponent({
       // Add zoom control to the bottom-left for RTL
       L.default.control.zoom({ position: "bottomleft" }).addTo(map);
 
+      mapInstanceRef.current = map;
       setMapInstance(map);
     };
 
     initMap();
 
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
     };
-  }, [leafletLoaded, isDark]);
+  }, [leafletLoaded, isDark, center.lat, center.lng]);
 
   // Update center when location changes
   useEffect(() => {
@@ -216,21 +219,18 @@ export function MapComponent({
           color: baseColor,
           weight: 5,
           opacity: 0.9,
-          dashArray: null,
         };
       case "completed":
         return {
           color: "#22c55e",
           weight: 4,
           opacity: 0.8,
-          dashArray: null,
         };
       default:
         return {
           color: baseColor,
           weight: 4,
           opacity: 0.8,
-          dashArray: null,
         };
     }
   }, [routeStyle, routeColor]);

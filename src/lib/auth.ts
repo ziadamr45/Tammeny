@@ -9,6 +9,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   name: string;
+  [key: string]: unknown;
 }
 
 // Create JWT token

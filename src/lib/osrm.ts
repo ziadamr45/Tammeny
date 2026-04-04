@@ -48,7 +48,7 @@ export async function getRoute(
       distance: route.distance,
       duration: route.duration,
       geometry: route.geometry.coordinates,
-      steps: route.legs[0]?.steps?.map((step: Record<string, unknown>) => ({
+      steps: route.legs[0]?.steps?.map((step: any) => ({
         distance: step.distance,
         duration: step.duration,
         instruction: step.maneuver?.instruction || '',
