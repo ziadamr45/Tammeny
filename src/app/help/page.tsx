@@ -25,8 +25,6 @@ import {
   Bell,
   PlayCircle,
   Facebook,
-  Twitter,
-  Instagram,
   AlertTriangle,
   Send,
   Clock,
@@ -518,14 +516,14 @@ export default function HelpPage() {
               <div className="flex-1">
                 <div className="font-medium">البريد الإلكتروني</div>
                 <div className="text-sm text-muted-foreground" dir="ltr">
-                  support@tamenny.app
+                  ziad90216@gmail.com
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="rounded-lg"
-                onClick={() => window.open('mailto:support@tamenny.app', '_self')}
+                onClick={() => window.open('mailto:ziad90216@gmail.com', '_self')}
               >
                 مراسلة
               </Button>
@@ -553,22 +551,18 @@ export default function HelpPage() {
           <Card className="p-4 card-shadow">
             <div className="flex justify-center gap-4">
               <button
-                onClick={() => window.open('https://facebook.com/tamennyapp', '_blank', 'noopener,noreferrer')}
+                onClick={() => window.open('https://www.facebook.com/ziad7mr', '_blank', 'noopener,noreferrer')}
                 className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center hover:scale-110 transition-transform"
+                title="فيسبوك"
               >
                 <Facebook className="w-6 h-6 text-blue-600" />
               </button>
               <button
-                onClick={() => window.open('https://twitter.com/tamennyapp', '_blank', 'noopener,noreferrer')}
+                onClick={() => window.open('https://t.me/ziadamr', '_blank', 'noopener,noreferrer')}
                 className="w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center hover:scale-110 transition-transform"
+                title="تيليجرام"
               >
-                <Twitter className="w-6 h-6 text-sky-500" />
-              </button>
-              <button
-                onClick={() => window.open('https://instagram.com/tamennyapp', '_blank', 'noopener,noreferrer')}
-                className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center hover:scale-110 transition-transform"
-              >
-                <Instagram className="w-6 h-6 text-pink-600" />
+                <Send className="w-6 h-6 text-sky-500" />
               </button>
             </div>
           </Card>
