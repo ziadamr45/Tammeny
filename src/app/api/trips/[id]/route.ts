@@ -2,6 +2,59 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 
+// DELETE - Delete a trip from history
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'غير مسجل الدخول' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+
+    // Check if session exists and belongs to user
+    const session = await db.session.findFirst({
+      where: {
+        id,
+        creatorId: user.userId,
+      },
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'لم يتم العثور على الرحلة' },
+        { status: 404 }
+      );
+    }
+
+    // Delete related records first (locations, allowed users, messages)
+    await db.$transaction([
+      db.location.deleteMany({ where: { sessionId: id } }),
+      db.allowedUser.deleteMany({ where: { sessionId: id } }),
+      db.message.deleteMany({ where: { sessionId: id } }),
+      db.session.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({
+      success: true,
+      message: 'تم حذف الرحلة بنجاح',
+    });
+  } catch (error) {
+    console.error('Error deleting trip:', error);
+    return NextResponse.json(
+      { success: false, error: 'فشل في حذف الرحلة' },
+      { status: 500 }
+    );
+  }
+}
+
 // GET - Get specific trip details
 export async function GET(
   request: NextRequest,

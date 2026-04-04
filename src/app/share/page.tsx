@@ -252,6 +252,8 @@ export default function SharePage() {
           destName: destination || null,
           isGhostMode,
           sessionType: selectedDuration === -1 ? 'until_arrival' : 'minutes',
+          isRestricted,
+          allowedEmails: isRestricted ? allowedEmails : [],
         }),
       });
 

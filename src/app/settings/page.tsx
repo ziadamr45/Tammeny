@@ -490,12 +490,16 @@ export default function SettingsPage() {
             onClick={() => toast.info("قريباً")}
           />
           
-          <SettingsItem
-            icon={<HelpCircle className="w-5 h-5" />}
-            title="المساعدة"
-            description="الأسئلة الشائعة والدعم"
-            onClick={() => toast.info("قريباً")}
-          />
+          <Link href="/help">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><HelpCircle className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">المساعدة</div>
+                <div className="text-sm text-muted-foreground">الأسئلة الشائعة والدعم</div>
+              </div>
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </Link>
 
           <Link
             href="/compare"

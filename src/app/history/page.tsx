@@ -131,13 +131,58 @@ export default function HistoryPage() {
     return formatArabicTime(new Date(date));
   };
 
-  const handleShare = (session: Trip) => {
-    toast.success("تم نسخ تفاصيل الرحلة!");
+  const handleShare = async (session: Trip) => {
+    const shareMessage = `رحلتي إلى ${session.destination}\nالمسافة: ${formatArabicDistance(session.distance)}\nالمدة: ${formatArabicDuration(session.duration, 'minutes')}\nالتاريخ: ${formatDate(session.startTime)}`;
+    
+    // Try native share API first
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'تفاصيل الرحلة - طمنّي',
+          text: shareMessage,
+        });
+        toast.success("تمت المشاركة بنجاح!");
+      } catch (error) {
+        // User cancelled or share failed, fall back to clipboard
+        if ((error as Error).name !== 'AbortError') {
+          try {
+            await navigator.clipboard.writeText(shareMessage);
+            toast.success("تم نسخ تفاصيل الرحلة!");
+          } catch {
+            toast.error("فشل في نسخ تفاصيل الرحلة");
+          }
+        }
+      }
+    } else {
+      // Fallback to clipboard
+      try {
+        await navigator.clipboard.writeText(shareMessage);
+        toast.success("تم نسخ تفاصيل الرحلة!");
+      } catch {
+        toast.error("فشل في نسخ تفاصيل الرحلة");
+      }
+    }
   };
 
-  const handleDelete = (session: Trip) => {
-    toast.success("تم حذف الرحلة من السجل");
-    setSelectedSession(null);
+  const handleDelete = async (session: Trip) => {
+    try {
+      const response = await fetch(`/api/trips/${session.id}`, {
+        method: 'DELETE',
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Remove from local state
+        setTrips(trips.filter(t => t.id !== session.id));
+        toast.success("تم حذف الرحلة من السجل");
+        setSelectedSession(null);
+      } else {
+        toast.error(data.error || "فشل في حذف الرحلة");
+      }
+    } catch {
+      toast.error("فشل في حذف الرحلة");
+    }
   };
 
   const getTransportIcon = (mode: string) => {

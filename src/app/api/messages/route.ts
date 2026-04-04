@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 
-// GET - Get user's conversations (people they've shared sessions with)
+// GET - Get user's conversations or messages for a specific session
 export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
@@ -12,6 +12,65 @@ export async function GET(request: NextRequest) {
         { success: false, error: 'غير مسجل الدخول' },
         { status: 401 }
       );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get('sessionId');
+
+    // If sessionId is provided, return messages for that session
+    if (sessionId) {
+      const session = await db.session.findFirst({
+        where: {
+          id: sessionId,
+          OR: [
+            { creatorId: user.userId },
+            { allowedUsers: { some: { userId: user.userId } } }
+          ]
+        },
+        include: {
+          messages: {
+            include: {
+              sender: {
+                select: { id: true, name: true, avatar: true }
+              }
+            },
+            orderBy: { createdAt: 'asc' }
+          }
+        }
+      });
+
+      if (!session) {
+        return NextResponse.json(
+          { success: false, error: 'المحادثة غير موجودة' },
+          { status: 404 }
+        );
+      }
+
+      // Mark messages as read
+      await db.message.updateMany({
+        where: {
+          sessionId,
+          isRead: false,
+          senderId: { not: user.userId }
+        },
+        data: { isRead: true, readAt: new Date() }
+      });
+
+      const formattedMessages = session.messages.map(msg => ({
+        id: msg.id,
+        sender: msg.senderId === user.userId ? 'me' : msg.sender.name,
+        senderId: msg.senderId,
+        text: msg.content,
+        type: msg.type,
+        time: formatTimeAgo(msg.createdAt),
+        status: msg.isRead ? 'read' : 'sent',
+        createdAt: msg.createdAt
+      }));
+
+      return NextResponse.json({
+        success: true,
+        messages: formattedMessages,
+      });
     }
 
     // Get all sessions where user is creator
@@ -103,7 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { sessionId, content, receiverId } = body;
+    const { sessionId, content, receiverId, type } = body;
 
     if (!sessionId || !content) {
       return NextResponse.json(
@@ -119,7 +178,7 @@ export async function POST(request: NextRequest) {
         senderId: user.userId,
         receiverId: receiverId || null,
         content,
-        type: 'text',
+        type: type || 'text',
       },
       include: {
         sender: {

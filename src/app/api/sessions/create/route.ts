@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
       destName,
       isGhostMode,
       sessionType,
+      isRestricted,
+      allowedEmails,
     } = body;
 
     // Validate required fields
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
         destName: destName || null,
         status: 'active',
         isGhostMode: isGhostMode || false,
+        isRestricted: isRestricted || false,
         startedAt: new Date(),
         expiresAt: duration > 0 ? new Date(Date.now() + duration * 60 * 1000) : null,
         totalDistance: 0,
@@ -82,6 +85,17 @@ export async function POST(request: NextRequest) {
       where: { id: session.id },
       data: { encryptedId },
     });
+
+    // Create AllowedUser records for restricted sessions
+    if (isRestricted && allowedEmails && allowedEmails.length > 0) {
+      await db.allowedUser.createMany({
+        data: allowedEmails.map((email: string) => ({
+          sessionId: session.id,
+          email: email.toLowerCase().trim(),
+          token: crypto.randomUUID(),
+        })),
+      });
+    }
 
     // Create share URL
     const host = request.headers.get('host') || 'localhost:3000';

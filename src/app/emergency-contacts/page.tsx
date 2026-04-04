@@ -318,7 +318,25 @@ export default function EmergencyContactsPage() {
             <h3 className="font-bold mb-4">إجراءات سريعة</h3>
             <div className="space-y-3">
               <button
-                onClick={() => toast.info("سيتم إرسال تنبيه تجريبي")}
+                onClick={async () => {
+                  try {
+                    // Send test alert to all emergency contacts
+                    const response = await fetch('/api/emergency-contacts/test-alert', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                      toast.success(`تم إرسال تنبيه تجريبي إلى ${data.sentCount || contacts.length} جهة اتصال`);
+                    } else {
+                      toast.error(data.error || 'فشل إرسال التنبيه التجريبي');
+                    }
+                  } catch (error) {
+                    console.error('Error sending test alert:', error);
+                    toast.error('فشل إرسال التنبيه التجريبي');
+                  }
+                }}
                 className="w-full flex items-center gap-3 p-3 bg-red-50 rounded-xl hover:bg-red-100 transition-colors"
               >
                 <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">

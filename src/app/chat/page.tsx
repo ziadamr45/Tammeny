@@ -71,8 +71,15 @@ export default function ChatPage() {
   const [isTyping, setIsTyping] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState<{id: string; sender: string; text: string; time: string; status: string}[]>([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messages, setMessages] = useState<{id: string; sender: string; text: string; time: string; status: string; type?: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Voice recording refs and state
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -160,17 +167,160 @@ export default function ChatPage() {
     toast.success("تم مشاركة موقعك!");
   };
 
-  const handleSelectChat = (chat: Conversation) => {
+  const handleSelectChat = async (chat: Conversation) => {
     setSelectedChat(chat);
     setView("chat");
-    // Load messages for this conversation (would be from API)
     setMessages([]);
+    
+    // Fetch previous messages for this conversation from API
+    try {
+      setMessagesLoading(true);
+      const response = await fetch(`/api/messages?sessionId=${chat.sessionId}`);
+      const data = await response.json();
+      
+      if (data.success && data.messages) {
+        setMessages(data.messages);
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+      toast.error("حدث خطأ أثناء تحميل الرسائل");
+    } finally {
+      setMessagesLoading(false);
+    }
   };
 
   const handleBack = () => {
     setView("list");
     setSelectedChat(null);
     setMessages([]);
+    // Stop any ongoing recording
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      
+      mediaRecorder.onstop = () => {
+        // Stop all audio tracks
+        stream.getAudioTracks().forEach(track => track.stop());
+        
+        // Create audio blob
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        
+        // Send the voice message
+        if (audioBlob.size > 0 && selectedChat) {
+          sendVoiceMessage(audioBlob);
+        }
+        
+        // Clear recording interval
+        if (recordingIntervalRef.current) {
+          clearInterval(recordingIntervalRef.current);
+          recordingIntervalRef.current = null;
+        }
+        setRecordingTime(0);
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+      
+      // Start recording timer
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        toast.error("يرجى السماح بالوصول إلى الميكروفون");
+      } else if (error instanceof Error && error.name === 'NotFoundError') {
+        toast.error("لم يتم العثور على ميكروفون");
+      } else {
+        toast.error("حدث خطأ أثناء بدء التسجيل");
+      }
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
+  const sendVoiceMessage = async (audioBlob: Blob) => {
+    if (!selectedChat) return;
+    
+    try {
+      // Convert blob to base64 for sending
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64Audio = reader.result as string;
+        
+        try {
+          const response = await fetch('/api/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sessionId: selectedChat.sessionId,
+              content: base64Audio,
+              type: 'voice',
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            // Add voice message to local state
+            const newMessage = {
+              id: data.message?.id || Date.now().toString(),
+              sender: "me",
+              text: "🎤 رسالة صوتية",
+              time: new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+              status: "sent",
+              type: "voice"
+            };
+            setMessages(prev => [...prev, newMessage]);
+            scrollToBottom();
+            toast.success("تم إرسال الرسالة الصوتية");
+          } else {
+            toast.error(data.error || "فشل في إرسال الرسالة الصوتية");
+          }
+        } catch {
+          toast.error("حدث خطأ أثناء إرسال الرسالة الصوتية");
+        }
+      };
+      reader.readAsDataURL(audioBlob);
+    } catch (error) {
+      console.error('Error sending voice message:', error);
+      toast.error("حدث خطأ أثناء إرسال الرسالة الصوتية");
+    }
   };
 
   // Auth Loading
@@ -204,12 +354,14 @@ export default function ChatPage() {
         <ChatView
           selectedChat={selectedChat}
           messages={messages}
+          messagesLoading={messagesLoading}
           message={message}
           setMessage={setMessage}
           onSendMessage={handleSendMessage}
           onBack={handleBack}
           isRecording={isRecording}
-          setIsRecording={setIsRecording}
+          toggleRecording={toggleRecording}
+          recordingTime={recordingTime}
           messagesEndRef={messagesEndRef}
           showQuickReplies={showQuickReplies}
           setShowQuickReplies={setShowQuickReplies}
@@ -373,12 +525,14 @@ function ChatList({
 function ChatView({
   selectedChat,
   messages,
+  messagesLoading,
   message,
   setMessage,
   onSendMessage,
   onBack,
   isRecording,
-  setIsRecording,
+  toggleRecording,
+  recordingTime,
   messagesEndRef,
   showQuickReplies,
   setShowQuickReplies,
@@ -391,13 +545,15 @@ function ChatView({
   isTyping,
 }: {
   selectedChat: Conversation | null;
-  messages: {id: string; sender: string; text: string; time: string; status: string}[];
+  messages: {id: string; sender: string; text: string; time: string; status: string; type?: string}[];
+  messagesLoading: boolean;
   message: string;
   setMessage: (msg: string) => void;
   onSendMessage: () => void;
   onBack: () => void;
   isRecording: boolean;
-  setIsRecording: (val: boolean) => void;
+  toggleRecording: () => void;
+  recordingTime: number;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   showQuickReplies: boolean;
   setShowQuickReplies: (val: boolean) => void;
@@ -463,8 +619,16 @@ function ChatView({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 min-h-[calc(100vh-320px)]">
+        {/* Loading state */}
+        {messagesLoading && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <p className="text-muted-foreground mt-2">جاري تحميل الرسائل...</p>
+          </div>
+        )}
+        
         {/* Empty state */}
-        {messages.length === 0 && (
+        {!messagesLoading && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
               <MessageCircle className="w-8 h-8 text-primary" />
@@ -588,15 +752,24 @@ function ChatView({
           <Button
             variant={isRecording ? "destructive" : "ghost"}
             size="icon"
-            className="shrink-0 rounded-full"
-            onClick={() => setIsRecording(!isRecording)}
+            className={cn("shrink-0 rounded-full", isRecording && "animate-pulse")}
+            onClick={toggleRecording}
           >
             {isRecording ? (
-              <MicOff className="w-5 h-5" />
+              <div className="flex items-center gap-1">
+                <MicOff className="w-5 h-5" />
+              </div>
             ) : (
               <Mic className="w-5 h-5" />
             )}
           </Button>
+          
+          {/* Recording indicator */}
+          {isRecording && (
+            <span className="text-xs text-red-500 font-mono">
+              {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
+            </span>
+          )}
 
           {/* Text input */}
           <Input

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ interface VideoTutorial {
   title: string;
   duration: string;
   description: string;
+  youtubeUrl: string;
 }
 
 const FAQ_DATA: FAQItem[] = [
@@ -168,26 +169,40 @@ const VIDEO_TUTORIALS: VideoTutorial[] = [
     title: "البدء مع طمنّي",
     duration: "٣ دقائق",
     description: "تعرف على الميزات الأساسية للتطبيق",
+    youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   },
   {
     id: "2",
     title: "مشاركة الموقع بسهولة",
     duration: "٢ دقيقة",
     description: "خطوات مشاركة موقعك مع العائلة",
+    youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   },
   {
     id: "3",
     title: "إعداد المناطق الآمنة",
     duration: "٤ دقائق",
     description: "كيفية إنشاء وإدارة المناطق الآمنة",
+    youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   },
   {
     id: "4",
     title: "استخدام الطوارئ",
     duration: "١ دقيقة",
     description: "متى وكيف تستخدم زر الطوارئ",
+    youtubeUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
   },
 ];
+
+// Map quick help topics to FAQ categories
+const QUICK_HELP_FAQ_MAP: Record<string, string[]> = {
+  "مشاركة الموقع": ["1", "6"],
+  "إضافة جهات اتصال": ["2", "8"],
+  "المناطق الآمنة": ["3"],
+  "الطوارئ SOS": ["4"],
+  "الإشعارات": ["9"],
+  "الخصوصية والأمان": ["5"],
+};
 
 export default function HelpPage() {
   const router = useRouter();
@@ -199,6 +214,8 @@ export default function HelpPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
+  const faqRef = useRef<HTMLDivElement>(null);
 
   const handleContactSubmit = async () => {
     if (!contactForm.name || !contactForm.email || !contactForm.message) {
@@ -252,6 +269,22 @@ export default function HelpPage() {
       item.category.includes(searchQuery)
   );
 
+  // Handle quick help topic click - scroll to FAQ and expand relevant items
+  const handleQuickHelpClick = (title: string) => {
+    const faqIds = QUICK_HELP_FAQ_MAP[title];
+    if (faqIds && faqIds.length > 0) {
+      // Scroll to FAQ section
+      faqRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Expand the first relevant FAQ
+      setExpandedFAQ(faqIds[0]);
+    }
+  };
+
+  // Handle video tutorial click - open YouTube
+  const handleVideoClick = (video: VideoTutorial) => {
+    window.open(video.youtubeUrl, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <main className="min-h-screen bg-background pb-24">
       {/* Header */}
@@ -301,7 +334,7 @@ export default function HelpPage() {
               <Card
                 key={index}
                 className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20"
-                onClick={() => toast.info(`جاري تحميل موضوع: ${item.title}`)}
+                onClick={() => handleQuickHelpClick(item.title)}
               >
                 <div className="flex flex-col items-center text-center gap-3">
                   <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", item.color)}>
@@ -320,7 +353,7 @@ export default function HelpPage() {
         </div>
 
         {/* FAQ Section */}
-        <div>
+        <div ref={faqRef}>
           <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
             <MessageCircle className="w-5 h-5 text-primary" />
             الأسئلة الشائعة
@@ -338,7 +371,7 @@ export default function HelpPage() {
           </div>
 
           <Card className="card-shadow overflow-hidden">
-            <Accordion type="single" collapsible className="w-full">
+            <Accordion type="single" collapsible value={expandedFAQ || ""} onValueChange={setExpandedFAQ} className="w-full">
               {filteredFAQ.map((item) => (
                 <AccordionItem key={item.id} value={item.id} className="px-4">
                   <AccordionTrigger className="text-right hover:no-underline">
@@ -372,7 +405,7 @@ export default function HelpPage() {
               <Card
                 key={video.id}
                 className="overflow-hidden card-shadow hover:shadow-lg transition-all cursor-pointer group"
-                onClick={() => toast.info(`جاري تشغيل: ${video.title}`)}
+                onClick={() => handleVideoClick(video)}
               >
                 <div className="aspect-video bg-gradient-to-br from-primary/20 to-teal-600/20 relative flex items-center justify-center">
                   <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -520,19 +553,19 @@ export default function HelpPage() {
           <Card className="p-4 card-shadow">
             <div className="flex justify-center gap-4">
               <button
-                onClick={() => toast.info("جاري فتح فيسبوك...")}
+                onClick={() => window.open('https://facebook.com/tamennyapp', '_blank', 'noopener,noreferrer')}
                 className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center hover:scale-110 transition-transform"
               >
                 <Facebook className="w-6 h-6 text-blue-600" />
               </button>
               <button
-                onClick={() => toast.info("جاري فتح تويتر...")}
+                onClick={() => window.open('https://twitter.com/tamennyapp', '_blank', 'noopener,noreferrer')}
                 className="w-12 h-12 rounded-xl bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center hover:scale-110 transition-transform"
               >
                 <Twitter className="w-6 h-6 text-sky-500" />
               </button>
               <button
-                onClick={() => toast.info("جاري فتح انستجرام...")}
+                onClick={() => window.open('https://instagram.com/tamennyapp', '_blank', 'noopener,noreferrer')}
                 className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center hover:scale-110 transition-transform"
               >
                 <Instagram className="w-6 h-6 text-pink-600" />

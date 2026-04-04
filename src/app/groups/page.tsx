@@ -81,6 +81,8 @@ export default function GroupsPage() {
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupDesc, setNewGroupDesc] = useState("");
   const [newMemberName, setNewMemberName] = useState("");
+  const [isQuickSharing, setIsQuickSharing] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -166,15 +168,134 @@ export default function GroupsPage() {
       return;
     }
 
-    // Note: In a real app, this would invite a user by email or ID
-    // For now, we'll just show a success message
-    toast.success("تم إرسال دعوة للعضو");
-    setShowAddMemberDialog(false);
-    setNewMemberName("");
+    setIsAddingMember(true);
+
+    try {
+      // Search for the user by email or name
+      const searchResponse = await fetch(`/api/users/search?q=${encodeURIComponent(newMemberName)}`);
+      const searchData = await searchResponse.json();
+
+      if (!searchData.success || !searchData.users || searchData.users.length === 0) {
+        toast.error("لم يتم العثور على مستخدم بهذا الاسم أو البريد الإلكتروني. يمكنك دعوتهم عبر البريد الإلكتروني أو الهاتف بدلاً من ذلك.");
+        setIsAddingMember(false);
+        return;
+      }
+
+      // If multiple users found, use the first one (could show a selection dialog in future)
+      const userToAdd = searchData.users[0];
+
+      // Check if user is already a member
+      if (selectedGroup.members.some(m => m.userId === userToAdd.id)) {
+        toast.error("هذا المستخدم عضو بالفعل في المجموعة");
+        setIsAddingMember(false);
+        return;
+      }
+
+      // Add the member to the group
+      const addResponse = await fetch(`/api/groups/${selectedGroup.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          addMemberUserId: userToAdd.id,
+        }),
+      });
+
+      const addData = await addResponse.json();
+
+      if (addData.success) {
+        toast.success(`تمت إضافة ${userToAdd.name} إلى المجموعة`);
+        setShowAddMemberDialog(false);
+        setNewMemberName("");
+        // Refresh the groups list
+        fetchGroups();
+      } else {
+        toast.error(addData.error || "فشل في إضافة العضو");
+      }
+    } catch (err) {
+      console.error("Error adding member:", err);
+      toast.error("فشل في إضافة العضو");
+    } finally {
+      setIsAddingMember(false);
+    }
   };
 
-  const handleQuickShare = (group: Group) => {
-    toast.success(`تم بدء المشاركة مع ${group.name}`);
+  const handleQuickShare = async (group: Group) => {
+    setIsQuickSharing(true);
+
+    try {
+      // Get user's current location
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("المتصفح لا يدعم تحديد الموقع"));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+
+      const { latitude, longitude } = position.coords;
+
+      // Create a location sharing session
+      const response = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          duration: 60, // Default 60 minutes
+          startLat: latitude,
+          startLng: longitude,
+          sessionType: 'minutes',
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(`تم بدء المشاركة مع ${group.name}`);
+        // Navigate to the share page to show the link
+        if (data.shareUrl) {
+          // Copy to clipboard and show the link
+          try {
+            await navigator.clipboard.writeText(data.shareUrl);
+            toast.success("تم نسخ رابط المشاركة إلى الحافظة");
+          } catch {
+            // If clipboard fails, just show the link
+            toast.info(`رابط المشاركة: ${data.shareUrl}`);
+          }
+          // Navigate to the share page
+          router.push(`/share/${data.encryptedId}`);
+        }
+      } else {
+        toast.error(data.error || "فشل في بدء المشاركة");
+      }
+    } catch (err) {
+      console.error("Error starting quick share:", err);
+      if (err instanceof GeolocationPositionError) {
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            toast.error("تم رفض إذن تحديد الموقع. يرجى السماح بالوصول للموقع.");
+            break;
+          case err.POSITION_UNAVAILABLE:
+            toast.error("معلومات الموقع غير متاحة حالياً");
+            break;
+          case err.TIMEOUT:
+            toast.error("انتهت مهلة تحديد الموقع. يرجى المحاولة مرة أخرى.");
+            break;
+          default:
+            toast.error("فشل في تحديد الموقع");
+        }
+      } else {
+        toast.error("فشل في بدء المشاركة. يرجى المحاولة مرة أخرى.");
+      }
+    } finally {
+      setIsQuickSharing(false);
+    }
   };
 
   const handleLeaveGroup = async (groupId: string) => {
@@ -485,24 +606,32 @@ export default function GroupsPage() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>اسم العضو</Label>
+              <Label>البحث عن عضو</Label>
               <Input
                 value={newMemberName}
                 onChange={(e) => setNewMemberName(e.target.value)}
-                placeholder="اسم العضو..."
+                placeholder="اسم المستخدم أو البريد الإلكتروني..."
                 className="text-right"
+                disabled={isAddingMember}
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              سيتم إرسال دعوة للعضو للانضمام إلى {selectedGroup?.name}
+              ابحث عن مستخدم مسجل في التطبيق بإسمه أو بريده الإلكتروني لإضافته إلى {selectedGroup?.name}
             </p>
           </div>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowAddMemberDialog(false)}>
+            <Button variant="outline" onClick={() => setShowAddMemberDialog(false)} disabled={isAddingMember}>
               إلغاء
             </Button>
-            <Button className="bg-primary" onClick={handleAddMember}>
-              إضافة
+            <Button className="bg-primary" onClick={handleAddMember} disabled={isAddingMember}>
+              {isAddingMember ? (
+                <>
+                  <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                  جاري الإضافة...
+                </>
+              ) : (
+                "إضافة"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
