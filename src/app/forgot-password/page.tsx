@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   ArrowRight,
   Mail,
@@ -18,6 +17,7 @@ import {
   RefreshCw,
   ArrowLeft,
   Timer,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -35,6 +35,8 @@ export default function ForgotPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
+  const [resetToken, setResetToken] = useState("");
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
 
   const handleEmailSubmit = async () => {
     if (!email || !email.includes("@")) {
@@ -42,12 +44,30 @@ export default function ForgotPasswordPage() {
       return;
     }
     setLoading(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    setStep("otp");
-    startResendTimer();
-    toast.success("تم إرسال رمز التحقق إلى بريدك الإلكتروني");
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setStep("otp");
+        startResendTimer();
+        toast.success(data.message || "تم إرسال رمز التحقق إلى بريدك الإلكتروني");
+        // Show debug OTP in development
+        if (data.debug_otp) {
+          setDebugOtp(data.debug_otp);
+        }
+      } else {
+        toast.error(data.error || "فشل في إرسال رمز التحقق");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء إرسال رمز التحقق");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const startResendTimer = () => {
@@ -90,10 +110,26 @@ export default function ForgotPasswordPage() {
       return;
     }
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    setStep("new-password");
-    toast.success("تم التحقق بنجاح");
+    try {
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: otpCode }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setResetToken(data.resetToken);
+        setStep("new-password");
+        toast.success("تم التحقق بنجاح");
+      } else {
+        toast.error(data.error || "رمز التحقق غير صحيح");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء التحقق من الرمز");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePasswordSubmit = async () => {
@@ -106,19 +142,52 @@ export default function ForgotPasswordPage() {
       return;
     }
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setLoading(false);
-    setStep("success");
-    toast.success("تم تغيير كلمة المرور بنجاح!");
+    try {
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, resetToken, newPassword }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setStep("success");
+        toast.success("تم تغيير كلمة المرور بنجاح!");
+      } else {
+        toast.error(data.error || "فشل في تغيير كلمة المرور");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء تغيير كلمة المرور");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResendOtp = async () => {
     if (resendTimer > 0) return;
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setLoading(false);
-    startResendTimer();
-    toast.success("تم إعادة إرسال رمز التحقق");
+    try {
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        startResendTimer();
+        toast.success("تم إعادة إرسال رمز التحقق");
+        if (data.debug_otp) {
+          setDebugOtp(data.debug_otp);
+        }
+      } else {
+        toast.error(data.error || "فشل في إعادة الإرسال");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء إعادة الإرسال");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -175,6 +244,21 @@ export default function ForgotPasswordPage() {
             </div>
           ))}
         </div>
+
+        {/* Debug OTP Banner */}
+        {debugOtp && step === "otp" && (
+          <Card className="p-4 mb-4 bg-yellow-50 border-yellow-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              <div>
+                <p className="text-sm font-medium text-yellow-800">وضع التطوير</p>
+                <p className="text-xs text-yellow-700">
+                  رمز التحقق: <span className="font-bold">{debugOtp}</span>
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Email Step */}
         {step === "email" && (

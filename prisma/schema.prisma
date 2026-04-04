@@ -24,6 +24,10 @@ model User {
   deviceToken   String?   // For push notifications
   isVerified    Boolean   @default(false)
   
+  // Password reset
+  passwordResetOtp     String?
+  passwordResetExpiry  DateTime?
+  
   // Last known location (encrypted for security)
   lastLocationData    String?   // Encrypted JSON: { lat, lng, name, timestamp, accuracy }
   lastLocationUpdated DateTime? // When the location was last updated
@@ -325,14 +329,26 @@ model SOSSession {
   locationName  String?
   batteryLevel  Int?
   status        String    @default("active") // "active" | "resolved" | "expired"
-  
+
   // Timestamps
   createdAt     DateTime  @default(now())
   resolvedAt    DateTime?
-  
+
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])
   @@map("sos_sessions")
+}
+
+// Support Ticket model for help/contact form
+model SupportTicket {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  message   String
+  status    String   @default("open") // "open" | "in_progress" | "closed"
+  createdAt DateTime @default(now())
+
+  @@map("support_tickets")
 }

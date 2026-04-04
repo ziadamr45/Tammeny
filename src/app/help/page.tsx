@@ -34,6 +34,7 @@ import {
   Globe,
   CheckCircle,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -210,12 +211,31 @@ export default function HelpPage() {
       return;
     }
 
+    if (contactForm.message.length < 10) {
+      toast.error("الرسالة يجب أن تكون 10 أحرف على الأقل");
+      return;
+    }
+
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setContactForm({ name: "", email: "", message: "" });
-    toast.success("تم إرسال رسالتك بنجاح! سنتواصل معك قريباً");
+    try {
+      const response = await fetch('/api/help/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactForm),
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setContactForm({ name: "", email: "", message: "" });
+        toast.success("تم إرسال رسالتك! سنتواصل معك قريباً");
+      } else {
+        toast.error(data.error || "فشل إرسال الرسالة");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء إرسال الرسالة");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEmergencyCall = () => {
@@ -419,10 +439,7 @@ export default function HelpPage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin">⏳</span>
-                  جاري الإرسال...
-                </span>
+                <RefreshCw className="w-5 h-5 animate-spin" />
               ) : (
                 <>
                   إرسال الرسالة

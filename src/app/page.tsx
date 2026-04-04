@@ -86,6 +86,10 @@ export default function HomePage() {
   const [isOnline, setIsOnline] = useState(true); // Default to true for SSR consistency
   const [activeEncryptedId, setActiveEncryptedId] = useState<string | null>(null);
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [notificationsBannerVisible, setNotificationsBannerVisible] = useState(true);
+  const [quickStats, setQuickStats] = useState({ trips: 0, distance: 0, contacts: 0 });
+  const [recentTrips, setRecentTrips] = useState<Array<{ id: string; destination: string; startTime: string; distance: number; status: string }>>([]);
+  const [safeZones, setSafeZones] = useState<Array<{ id: string; name: string; type: string; latitude: number; longitude: number }>>([]);
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +108,71 @@ export default function HomePage() {
       });
     }
   }, []);
+
+  // Fetch quick stats and recent trips after auth
+  useEffect(() => {
+    if (!authChecked) return;
+
+    const fetchData = async () => {
+      try {
+        const [tripsRes, contactsRes, safeZonesRes] = await Promise.all([
+          fetch('/api/trips?time=week'),
+          fetch('/api/contacts'),
+          fetch('/api/safe-zones'),
+        ]);
+        const [tripsData, contactsData, safeZonesData] = await Promise.all([
+          tripsRes.json(),
+          contactsRes.json(),
+          safeZonesRes.json(),
+        ]);
+
+        if (tripsData.success) {
+          setQuickStats(prev => ({
+            ...prev,
+            trips: tripsData.stats?.totalTrips || 0,
+            distance: Math.round(tripsData.stats?.totalDistance || 0),
+          }));
+          setRecentTrips((tripsData.trips || []).slice(0, 3));
+        }
+        if (contactsData.success) {
+          setQuickStats(prev => ({
+            ...prev,
+            contacts: contactsData.contacts?.length || 0,
+          }));
+        }
+        if (safeZonesData.success) {
+          setSafeZones(safeZonesData.zones || []);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, [authChecked]);
+
+  // Handle notifications permission
+  const handleEnableNotifications = async () => {
+    if (!('Notification' in window)) {
+      toast.error("متصفحك لا يدعم الإشعارات");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+
+    if (permission === 'granted') {
+      toast.success("تم تفعيل الإشعارات بنجاح!");
+      setNotificationsBannerVisible(false);
+      // Save preference
+      await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationsEnabled: true }),
+      }).catch(() => {});
+    } else if (permission === 'denied') {
+      toast.error("تم رفض الإشعارات. يمكنك تفعيلها من إعدادات المتصفح");
+    }
+  };
 
   // Check online status
   useEffect(() => {
@@ -491,12 +560,38 @@ ${data.shareUrl}
     setAnimateMarker(false);
   };
 
-  // Quick share handler
-  const handleQuickShare = (duration: number) => {
-    setSelectedDuration(duration);
-    setStatus("sharing");
-    setEta(duration);
-    toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
+  // Quick share handler - creates real session
+  const handleQuickShare = async (duration: number) => {
+    if (!location) {
+      toast.error("لم يتم تحديد موقعك بعد");
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration,
+          startLat: location.lat,
+          startLng: location.lng,
+          sessionType: duration === -1 ? 'until_arrival' : 'minutes',
+        }),
+      });
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      setActiveEncryptedId(data.encryptedId);
+      setShareLink(data.shareUrl);
+      setSelectedDuration(duration);
+      setStatus("sharing");
+      setEta(duration);
+      startLocationUpdates(data.encryptedId);
+      toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "فشل بدء المشاركة");
+    }
   };
 
   // WhatsApp share handler
@@ -952,24 +1047,31 @@ ${data.shareUrl}
         />
 
         {/* Notifications Banner */}
-        <Card className="p-4 card-shadow-xl bg-gradient-to-l from-amber-50 via-orange-50 to-yellow-50 border-amber-200 border overflow-hidden relative group hover:shadow-lg transition-all animate-slide-up delay-400">
-          <div className="absolute inset-0 bg-gradient-to-l from-amber-100/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-amber-400 to-orange-400" />
-          <div className="flex items-center gap-3 relative z-10">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center shrink-0 group-hover:animate-pulse">
-              <Bell className="w-5 h-5 text-amber-600" />
+        {notificationsBannerVisible && (
+          <Card className="p-4 card-shadow-xl bg-gradient-to-l from-amber-50 via-orange-50 to-yellow-50 border-amber-200 border overflow-hidden relative group hover:shadow-lg transition-all animate-slide-up delay-400">
+            <div className="absolute inset-0 bg-gradient-to-l from-amber-100/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-l from-amber-400 to-orange-400" />
+            <div className="flex items-center gap-3 relative z-10">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center shrink-0 group-hover:animate-pulse">
+                <Bell className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-amber-800">فعّل الإشعارات</div>
+                <div className="text-sm text-amber-600">للحصول على تنبيهات الوصول</div>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-300 text-amber-700 hover:bg-amber-100 hover:shadow-md transition-all rounded-xl"
+                onClick={handleEnableNotifications}
+              >
+                تفعيل
+              </Button>
             </div>
-            <div className="flex-1">
-              <div className="font-bold text-amber-800">فعّل الإشعارات</div>
-              <div className="text-sm text-amber-600">للحصول على تنبيهات الوصول</div>
-            </div>
-            <Button size="sm" variant="outline" className="border-amber-300 text-amber-700 hover:bg-amber-100 hover:shadow-md transition-all rounded-xl">
-              تفعيل
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        )}
 
-        {/* Recent Activities - Empty state if no trips */}
+        {/* Recent Activities */}
         <Card className="p-4 card-shadow-xl hover:shadow-lg transition-all animate-slide-up delay-500">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-lg flex items-center gap-2">
@@ -978,28 +1080,49 @@ ${data.shareUrl}
             </h3>
             <Link href="/history" className="text-sm text-primary hover:underline hover:text-teal-dark transition-colors font-medium">عرض الكل</Link>
           </div>
-          <div className="text-center py-6">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center mx-auto mb-4">
-              <Activity className="w-8 h-8 text-muted-foreground" />
+          {recentTrips.length > 0 ? (
+            <div className="space-y-3">
+              {recentTrips.map((trip) => (
+                <div key={trip.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">{trip.destination || "رحلة"}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(trip.startTime).toLocaleDateString('ar-EG')} • {formatArabicDistance(trip.distance, "km")}
+                    </div>
+                  </div>
+                  <div className={cn("text-xs font-medium", trip.status === 'completed' ? "text-green-600" : "text-yellow-600")}>
+                    {trip.status === 'completed' ? 'مكتملة' : 'جارية'}
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-sm text-muted-foreground">
-              لا توجد رحلات حتى الآن. ابدأ مشاركة موقعك!
-            </p>
-          </div>
+          ) : (
+            <div className="text-center py-6">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center mx-auto mb-4">
+                <Activity className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                لا توجد رحلات حتى الآن. ابدأ مشاركة موقعك!
+              </p>
+            </div>
+          )}
         </Card>
 
-        {/* Stats Card - Will show 0 if no data */}
+        {/* Stats Card */}
         <Link href="/dashboard" className="block">
           <Card className="p-4 card-shadow-xl bg-gradient-to-r from-primary/5 via-teal-dark/5 to-primary/5 border-primary/10 hover:shadow-2xl transition-all cursor-pointer hover:-translate-y-1 group overflow-hidden relative animate-slide-up delay-500">
             {/* Decorative elements */}
             <div className="absolute top-0 left-0 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full -translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500" />
             <div className="absolute bottom-0 right-0 w-24 h-24 bg-gradient-to-tl from-teal-light/10 to-transparent rounded-full translate-x-8 translate-y-8 group-hover:scale-150 transition-transform duration-500" />
             <div className="flex items-center justify-around relative z-10">
-              <StatItem value="٠" label="رحلة" icon={<Route className="w-4 h-4" />} />
+              <StatItem value={toArabicNumerals(quickStats.trips.toString())} label="رحلة" icon={<Route className="w-4 h-4" />} />
               <div className="w-px h-12 bg-border/50" />
-              <StatItem value="٠" label="كم" icon={<MapPin className="w-4 h-4" />} />
+              <StatItem value={toArabicNumerals(quickStats.distance.toString())} label="كم" icon={<MapPin className="w-4 h-4" />} />
               <div className="w-px h-12 bg-border/50" />
-              <StatItem value="٠" label="جهة اتصال" icon={<User className="w-4 h-4" />} />
+              <StatItem value={toArabicNumerals(quickStats.contacts.toString())} label="جهة اتصال" icon={<User className="w-4 h-4" />} />
             </div>
           </Card>
         </Link>
@@ -1045,54 +1168,55 @@ ${data.shareUrl}
           <DialogHeader>
             <DialogTitle className="text-center text-lg">تحديد الوجهة</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
             <p className="text-sm text-muted-foreground text-center">
-              اختر وجهتك أو ابحث عنها على الخريطة
+              اختر وجهتك من المناطق الآمنة
             </p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => handleSetDestination({ lat: 30.0480, lng: 31.2395, name: "المكتب" })}
-                className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-teal-light/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Building2 className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <div className="font-bold">المكتب</div>
-                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
-                  </div>
+            {safeZones.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {safeZones.map((zone) => {
+                  const zoneIcon = zone.type === 'home' ? <Home className="w-6 h-6 text-green-600" /> :
+                    zone.type === 'work' ? <Building2 className="w-6 h-6 text-blue-600" /> :
+                    zone.type === 'school' ? <Sparkles className="w-6 h-6 text-purple-600" /> :
+                    <MapPin className="w-6 h-6 text-primary" />;
+                  const zoneColor = zone.type === 'home' ? 'from-green-100 to-emerald-100' :
+                    zone.type === 'work' ? 'from-blue-100 to-indigo-100' :
+                    zone.type === 'school' ? 'from-purple-100 to-pink-100' :
+                    'from-primary/20 to-teal-light/20';
+
+                  return (
+                    <button
+                      key={zone.id}
+                      onClick={() => handleSetDestination({ lat: zone.latitude, lng: zone.longitude, name: zone.name })}
+                      className="p-4 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/5 transition-all text-right group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center group-hover:scale-110 transition-transform", zoneColor)}>
+                          {zoneIcon}
+                        </div>
+                        <div>
+                          <div className="font-bold">{zone.name}</div>
+                          <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                  <MapPin className="w-8 h-8 text-muted-foreground" />
                 </div>
-              </button>
-              <button
-                onClick={() => handleSetDestination({ lat: 30.0500, lng: 31.2400, name: "منزل الأهل" })}
-                className="p-4 rounded-xl border-2 border-border hover:border-pink-400 hover:bg-pink-50/50 transition-all text-right group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-100 to-rose-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Heart className="w-6 h-6 text-pink-600" />
-                  </div>
-                  <div>
-                    <div className="font-bold">منزل الأهل</div>
-                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
-                  </div>
-                </div>
-              </button>
-              <button
-                onClick={() => handleSetDestination({ lat: 30.0450, lng: 31.2350, name: "المنزل" })}
-                className="p-4 rounded-xl border-2 border-border hover:border-green-400 hover:bg-green-50/50 transition-all text-right group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                    <Home className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="font-bold">المنزل</div>
-                    <div className="text-sm text-muted-foreground">اضغط للاختيار</div>
-                  </div>
-                </div>
-              </button>
-            </div>
+                <p className="text-muted-foreground mb-4">لم تضف مناطق آمنة بعد</p>
+                <Link href="/safe-zones">
+                  <Button variant="outline" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    إضافة منطقة آمنة
+                  </Button>
+                </Link>
+              </div>
+            )}
             <Button
               variant="outline"
               className="w-full rounded-xl"

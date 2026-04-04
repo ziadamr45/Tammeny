@@ -25,9 +25,7 @@ import {
   Navigation,
   Share2,
   RefreshCw,
-  Home,
   Heart,
-  Briefcase,
   AlertCircle,
   User,
   Plus,
@@ -37,19 +35,20 @@ import { toast } from "sonner";
 import Link from "next/link";
 import {
   toArabicNumerals,
-  formatArabicDistance,
   formatArabicTimeFromSeconds,
 } from "@/lib/arabic-numerals";
 
 // SOS Status types
 type SOSStatus = "inactive" | "counting" | "active";
 
-// Mock location (fallback)
-const MOCK_LOCATION = {
-  lat: 30.0444,
-  lng: 31.2357,
-  name: "القاهرة، مصر",
-};
+// Location type
+interface UserLocation {
+  lat: number;
+  lng: number;
+  name: string;
+  isLastKnown?: boolean;
+  timestamp?: Date;
+}
 
 // Contact type
 interface EmergencyContact {
@@ -65,10 +64,10 @@ export default function SOSPage() {
   const [authChecked, setAuthChecked] = useState(false);
   const [status, setStatus] = useState<SOSStatus>("inactive");
   const [countdown, setCountdown] = useState(5);
-  const [location, setLocation] = useState<typeof MOCK_LOCATION | null>(null);
+  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
   const [batterySaver, setBatterySaver] = useState(false);
-  const [eta, setEta] = useState(0);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [sharingLink, setSharingLink] = useState("");
   const [activeDuration, setActiveDuration] = useState(0);
@@ -99,7 +98,7 @@ export default function SOSPage() {
 
   // Get current location on mount
   useEffect(() => {
-    const fetchLocation = () => {
+    const fetchLocation = async () => {
       if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (position) => {
@@ -108,17 +107,39 @@ export default function SOSPage() {
               lng: position.coords.longitude,
               name: "موقعك الحالي",
             });
+            setLocationError(null);
           },
-          () => {
-            setTimeout(() => setLocation(MOCK_LOCATION), 0);
+          async (error) => {
+            console.log('GPS error:', error.message);
+            setLocationError("تعذر تحديد موقعك. سيتم إرسال التنبيه بدون إحداثيات دقيقة.");
+
+            // Try to get last known location from user's profile
+            try {
+              const response = await fetch('/api/user/location');
+              const data = await response.json();
+              if (data.success && data.lastLocation) {
+                setLocation({
+                  lat: data.lastLocation.lat,
+                  lng: data.lastLocation.lng,
+                  name: "آخر موقع معروف",
+                  isLastKnown: true,
+                  timestamp: new Date(data.lastLocation.timestamp),
+                });
+              } else {
+                setLocation(null);
+              }
+            } catch {
+              setLocation(null);
+            }
           },
-          { enableHighAccuracy: true }
+          { enableHighAccuracy: true, timeout: 10000 }
         );
       } else {
-        setTimeout(() => setLocation(MOCK_LOCATION), 0);
+        setLocationError("جهازك لا يدعم تحديد الموقع");
+        setLocation(null);
       }
     };
-    
+
     fetchLocation();
   }, []);
 
@@ -138,7 +159,7 @@ export default function SOSPage() {
         }
       } catch {
         // Battery API not supported
-        setBatteryLevel(75); // Mock value
+        setBatteryLevel(null);
       }
     };
 
@@ -230,9 +251,9 @@ export default function SOSPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          latitude: location?.lat,
-          longitude: location?.lng,
-          locationName: location?.name,
+          latitude: location?.lat ?? null,
+          longitude: location?.lng ?? null,
+          locationName: location?.name ?? null,
           batteryLevel: batteryLevel,
         }),
       });
@@ -257,9 +278,6 @@ export default function SOSPage() {
             toast.warning("لا توجد جهات اتصال للإبلاغ");
           }
         }, 1000);
-
-        // Simulate ETA
-        setEta(Math.floor(Math.random() * 10) + 5);
       } else {
         toast.error(data.error || "فشل في إرسال تنبيه الطوارئ");
       }
@@ -375,7 +393,7 @@ export default function SOSPage() {
           </div>
         </div>
       )}
-      
+
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b">
         <div className="p-4 flex items-center justify-between">
@@ -396,6 +414,19 @@ export default function SOSPage() {
       </div>
 
       <div className="p-4 space-y-6">
+        {/* Location Warning */}
+        {locationError && (
+          <Card className="p-4 bg-amber-50 border-amber-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium text-amber-800 mb-1">تنبيه الموقع</div>
+                <p className="text-sm text-amber-700">{locationError}</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* SOS Button Section */}
         <div className="flex flex-col items-center justify-center py-8">
           {status === "inactive" && (
@@ -492,7 +523,10 @@ export default function SOSPage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-primary" />
-                <span className="font-medium">موقعك الحالي</span>
+                <span className="font-medium">{location.name}</span>
+                {location.isLastKnown && (
+                  <Badge variant="outline" className="text-xs">آخر موقع معروف</Badge>
+                )}
               </div>
               {status === "active" && (
                 <Badge className="bg-green-100 text-green-700 gap-1">
@@ -507,7 +541,7 @@ export default function SOSPage() {
               <DynamicMap
                 center={location}
                 showUserLocation
-                markerLabel="موقعك"
+                markerLabel={location.name}
                 className="h-full w-full"
               />
             </div>
@@ -519,6 +553,19 @@ export default function SOSPage() {
               <span className="text-muted-foreground">
                 خط الطول: {toArabicNumerals(location.lng.toFixed(4))}°
               </span>
+            </div>
+          </Card>
+        )}
+
+        {/* No Location Warning */}
+        {!location && status === "active" && (
+          <Card className="p-4 bg-amber-50 border-amber-200">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium text-amber-800 mb-1">موقعك غير محدد</div>
+                <p className="text-sm text-amber-700">سيتم إرسال التنبيه بدون إحداثيات دقيقة</p>
+              </div>
             </div>
           </Card>
         )}
@@ -538,16 +585,16 @@ export default function SOSPage() {
               <div className="text-xs text-muted-foreground">تم إبلاغهم</div>
             </Card>
 
-            {/* ETA */}
-            <Card className="p-4 bg-blue-50 border-blue-200">
+            {/* Duration */}
+            <Card className="p-4 bg-purple-50 border-purple-200">
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-5 h-5 text-blue-600" />
-                <span className="font-medium text-sm">الوقت المتوقع</span>
+                <Clock className="w-5 h-5 text-purple-600" />
+                <span className="font-medium text-sm">المدة</span>
               </div>
-              <div className="text-lg font-bold text-blue-600">
-                {toArabicNumerals(eta)} دقيقة
+              <div className="text-lg font-bold text-purple-600">
+                {formatArabicTimeFromSeconds(activeDuration)}
               </div>
-              <div className="text-xs text-muted-foreground">للوصول للمساعدة</div>
+              <div className="text-xs text-muted-foreground">منذ التفعيل</div>
             </Card>
 
             {/* Battery Status */}
@@ -567,16 +614,16 @@ export default function SOSPage() {
               )}
             </Card>
 
-            {/* Duration */}
-            <Card className="p-4 bg-purple-50 border-purple-200">
+            {/* Time Sent */}
+            <Card className="p-4 bg-blue-50 border-blue-200">
               <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-5 h-5 text-purple-600" />
-                <span className="font-medium text-sm">المدة</span>
+                <Clock className="w-5 h-5 text-blue-600" />
+                <span className="font-medium text-sm">وقت الإرسال</span>
               </div>
-              <div className="text-lg font-bold text-purple-600">
+              <div className="text-lg font-bold text-blue-600">
                 {formatArabicTimeFromSeconds(activeDuration)}
               </div>
-              <div className="text-xs text-muted-foreground">منذ التفعيل</div>
+              <div className="text-xs text-muted-foreground">منذ إرسال التنبيه</div>
             </Card>
           </div>
         )}
