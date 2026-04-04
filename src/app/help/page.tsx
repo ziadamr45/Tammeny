@@ -21,7 +21,6 @@ import {
   Mail,
   MapPin,
   Users,
-  Shield,
   Bell,
   PlayCircle,
   Facebook,
@@ -36,6 +35,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { LogoIconInline } from "@/components/tamenny/logo";
 
 interface FAQItem {
   id: string;
@@ -136,7 +136,7 @@ const QUICK_HELP_ITEMS: QuickHelpItem[] = [
     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
   },
   {
-    icon: <Shield className="w-5 h-5" />,
+    icon: <Lock className="w-5 h-5" />,
     title: "المناطق الآمنة",
     description: "إنشاء مناطق جغرافية آمنة",
     color: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400",
@@ -571,17 +571,7 @@ export default function HelpPage() {
         {/* App Info */}
         <Card className="p-4 card-shadow">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="font-bold">طمنّي</div>
-                <div className="text-xs text-muted-foreground">
-                  الإصدار ١.٠.٠
-                </div>
-              </div>
-            </div>
+            <LogoIconInline />
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="text-xs">
                 <CheckCircle className="w-3 h-3 ml-1" />

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Shield, User, Mail, Lock, Eye, EyeOff, ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { LogoInline } from "@/components/tamenny/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -103,11 +104,7 @@ export default function RegisterPage() {
 
       {/* Logo Section */}
       <div className="flex flex-col items-center pt-8 pb-6">
-        <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-3 shadow-lg">
-          <Shield className="w-8 h-8 text-white" />
-        </div>
-        <h1 className="text-3xl font-bold text-primary">طمنّي</h1>
-        <p className="text-muted-foreground text-sm mt-1">أمان.. وثقة</p>
+        <LogoInline size="lg" showText />
       </div>
 
       {/* Form Card */}

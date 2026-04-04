@@ -1,10 +1,11 @@
 "use client";
 
-import { Map, Eye, Users, MessageCircle, Settings, Shield, Wifi, WifiOff, Signal, Crosshair, Battery, BatteryLow } from "lucide-react";
+import { Map, Eye, Users, MessageCircle, Settings, Wifi, WifiOff, Crosshair, Battery, BatteryLow } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
+import { LogoIconInline } from "./logo";
 
 const navItems = [
   { href: "/", icon: Map, label: "الخريطة" },
@@ -114,10 +115,7 @@ export function Header() {
   return (
     <header className="fixed top-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-b border-border z-50">
       <div className="flex items-center justify-between px-4 h-14 max-w-md mx-auto">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-primary" />
-          <span className="font-bold text-lg text-primary">طمنّي</span>
-        </div>
+        <LogoIconInline />
         
         {/* Network Quality Indicators */}
         <div className="flex items-center gap-3">
