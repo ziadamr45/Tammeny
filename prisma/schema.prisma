@@ -123,7 +123,7 @@ model GroupMember {
 // Session model for location sharing
 model Session {
   id              String    @id @default(cuid())
-  encryptedId     String    @unique  // Encrypted session ID for URL
+  encryptedId     String?   @unique  // Encrypted session ID for URL (generated after creation)
   creatorId       String
   
   // Session settings

@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { DEMO_USER_ID } from '../demo-user/route';
+import { verifyToken } from '@/lib/auth';
 
 // GET - List all sessions/trip history for a user
 export async function GET(request: NextRequest) {
   try {
+    // Get token from cookies
+    const token = request.cookies.get('auth-token')?.value;
+    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يرجى تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
+    // Verify token
+    const decoded = await verifyToken(token);
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json(
+        { success: false, error: 'جلسة غير صالحة' },
+        { status: 401 }
+      );
+    }
+
+    const userId = decoded.userId;
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId') || DEMO_USER_ID;
     const status = searchParams.get('status'); // 'active', 'completed', 'cancelled', 'all'
     const limit = parseInt(searchParams.get('limit') || '50');
 
@@ -61,18 +80,37 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch sessions' },
+      { success: false, error: 'فشل في جلب الجلسات' },
       { status: 500 }
     );
   }
 }
 
-// POST - Create a new session or trip history
+// POST - Create a new trip history record
 export async function POST(request: NextRequest) {
   try {
+    // Get token from cookies
+    const token = request.cookies.get('auth-token')?.value;
+    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: 'غير مصرح - يرجى تسجيل الدخول' },
+        { status: 401 }
+      );
+    }
+
+    // Verify token
+    const decoded = await verifyToken(token);
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json(
+        { success: false, error: 'جلسة غير صالحة' },
+        { status: 401 }
+      );
+    }
+
+    const userId = decoded.userId;
     const body = await request.json();
     const {
-      userId,
       startLocation,
       endLocation,
       startLat,
@@ -96,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     const tripHistory = await db.tripHistory.create({
       data: {
-        userId: userId || DEMO_USER_ID,
+        userId,
         startLocation,
         endLocation: endLocation || null,
         startLat: startLat || null,
@@ -132,7 +170,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating session:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create session' },
+      { success: false, error: 'فشل في إنشاء الجلسة' },
       { status: 500 }
     );
   }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import {
   Share2,
   Clock,
@@ -13,6 +14,7 @@ import {
   Navigation,
   Shield,
   Eye,
+  EyeOff,
   Lock,
   Copy,
   Check,
@@ -24,13 +26,13 @@ import {
   Hourglass,
   Infinity,
   Sparkles,
-  ChevronLeft,
   Search,
-  Map,
   Target,
   Loader2,
   QrCode,
   Download,
+  StopCircle,
+  Radio,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
@@ -64,6 +66,13 @@ export default function SharePage() {
   const [showQRModal, setShowQRModal] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
+  // NEW: Active sharing state
+  const [activeEncryptedId, setActiveEncryptedId] = useState<string | null>(null);
+  const [isSharingActive, setIsSharingActive] = useState(false);
+  const [viewerCount, setViewerCount] = useState(0);
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -80,16 +89,103 @@ export default function SharePage() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           });
+          lastLocationRef.current = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
         },
         () => {
-          // Use mock location
+          // Use mock location for Cairo
           setLocation({ lat: 30.0444, lng: 31.2357 });
-        }
+          lastLocationRef.current = { lat: 30.0444, lng: 31.2357 };
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
       );
     }
   }, []);
 
-  const countdownRef = useRef<number | null>(null);
+  // Start location updates for active session
+  const startLocationUpdates = useCallback((encryptedId: string) => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+    }
+
+    const sendLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const newLocation = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          };
+          
+          // Update local state
+          setLocation(newLocation);
+          lastLocationRef.current = newLocation;
+
+          // Send to server
+          fetch('/api/location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              encryptedId,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              speed: pos.coords.speed || 0,
+              accuracy: pos.coords.accuracy,
+            }),
+          }).catch((err) => {
+            console.error('Failed to send location:', err);
+          });
+        },
+        (error) => {
+          console.error('Geolocation error:', error);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    };
+
+    // Send immediately
+    sendLocation();
+    
+    // Then send every 5 seconds
+    locationIntervalRef.current = setInterval(sendLocation, 5000);
+  }, []);
+
+  // Stop location updates
+  const stopLocationUpdates = useCallback(() => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopLocationUpdates();
+    };
+  }, [stopLocationUpdates]);
+
+  // Stop sharing function
+  const stopSharing = async () => {
+    stopLocationUpdates();
+    
+    if (activeEncryptedId) {
+      try {
+        await fetch(`/api/sessions/${encodeURIComponent(activeEncryptedId)}/stop`, {
+          method: 'POST',
+        });
+      } catch (error) {
+        console.error('Error stopping session:', error);
+      }
+    }
+    
+    setActiveEncryptedId(null);
+    setIsSharingActive(false);
+    setShareLink("");
+    setViewerCount(0);
+    toast.success("تم إيقاف مشاركة الموقع");
+  };
 
   const handleAddEmail = () => {
     if (newEmail && !allowedEmails.includes(newEmail)) {
@@ -110,16 +206,44 @@ export default function SharePage() {
     }
 
     setIsAnimating(true);
-    
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Generate a mock share link
-    const mockEncryptedId = btoa(`session-${Date.now()}`);
-    const link = `${window.location.origin}/share/${mockEncryptedId}`;
-    setShareLink(link);
-    setIsAnimating(false);
-    setShowSuccessModal(true);
+    try {
+      const res = await fetch('/api/sessions/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: selectedDuration,
+          startLat: location.lat,
+          startLng: location.lng,
+          destName: destination || null,
+          isGhostMode,
+          sessionType: selectedDuration === -1 ? 'until_arrival' : 'minutes',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'فشل في إنشاء الجلسة');
+      }
+
+      // Set active sharing state
+      setActiveEncryptedId(data.encryptedId);
+      setShareLink(data.shareUrl);
+      setIsSharingActive(true);
+      setShowSuccessModal(true);
+
+      // Start location updates
+      startLocationUpdates(data.encryptedId);
+
+      toast.success("تم إنشاء رابط المشاركة بنجاح!");
+
+    } catch (error) {
+      console.error('Share error:', error);
+      toast.error(error instanceof Error ? error.message : "فشل إنشاء الجلسة، حاول تاني");
+    } finally {
+      setIsAnimating(false);
+    }
   };
 
   const handleCopyLink = async () => {
@@ -194,305 +318,397 @@ ${shareLink}
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold">شارك موقعك</h1>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span>GPS نشط</span>
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  isSharingActive ? "bg-green-500 animate-pulse" : "bg-muted-foreground"
+                )} />
+                <span>{isSharingActive ? "مشاركة نشطة" : "GPS نشط"}</span>
               </div>
             </div>
+
+            {/* ACTIVE SHARING BANNER - shown when sharing is active */}
+            {isSharingActive && activeEncryptedId && (
+              <Card className="p-4 card-shadow bg-gradient-to-l from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-700 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="relative">
+                    <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                    <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-500 animate-ping opacity-50" />
+                  </div>
+                  <span className="font-bold text-green-700 dark:text-green-400">أنت تشارك موقعك الآن</span>
+                  <Badge variant="outline" className="border-green-300 text-green-600 dark:border-green-700 dark:text-green-400">
+                    <Eye className="w-3 h-3 ml-1" />
+                    {viewerCount > 0 ? `${viewerCount} مشاهد` : "مباشر"}
+                  </Badge>
+                </div>
+                
+                <div className="flex items-center gap-2 mb-3 text-sm text-green-600 dark:text-green-400">
+                  <Radio className="w-4 h-4 animate-pulse" />
+                  <span>موقعك بيتحدث كل ٥ ثواني تلقائياً</span>
+                </div>
+
+                <div className="bg-white dark:bg-green-900/30 rounded-xl p-3 mb-3 border border-green-200 dark:border-green-800">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-green-600" />
+                      <span className="text-xs text-green-700 dark:text-green-400">رابط مشفر آمن</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyLink}
+                      className="h-7 text-xs text-green-600 hover:text-green-700"
+                    >
+                      {copied ? <Check className="w-3 h-3 ml-1" /> : <Copy className="w-3 h-3 ml-1" />}
+                      {copied ? "تم النسخ" : "نسخ"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 break-all">
+                    {shareLink}
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleShareNative}
+                    variant="outline"
+                    className="flex-1 rounded-xl h-11 border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-900/30"
+                  >
+                    <Share2 className="w-4 h-4 ml-2" />
+                    مشاركة الرابط
+                  </Button>
+                  <Button
+                    onClick={stopSharing}
+                    variant="destructive"
+                    className="flex-1 rounded-xl h-11"
+                  >
+                    <StopCircle className="w-4 h-4 ml-2" />
+                    إيقاف المشاركة
+                  </Button>
+                </div>
+              </Card>
+            )}
 
             {/* Location Status Card */}
             <Card className="p-4 card-shadow bg-gradient-to-l from-primary/10 to-teal-dark/5 border-primary/20">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-primary" />
+                <div className={cn(
+                  "w-12 h-12 rounded-xl flex items-center justify-center",
+                  isSharingActive 
+                    ? "bg-green-100 dark:bg-green-900/30 animate-pulse" 
+                    : "bg-primary/20"
+                )}>
+                  <MapPin className={cn(
+                    "w-6 h-6",
+                    isSharingActive ? "text-green-600" : "text-primary"
+                  )} />
                 </div>
                 <div className="flex-1">
                   <div className="text-sm text-muted-foreground">موقعك الحالي</div>
                   <div className="font-medium">
-                    {location ? "تم تحديد الموقع" : "جاري التحديد..."}
+                    {location 
+                      ? isSharingActive 
+                        ? "مشاركة نشطة" 
+                        : "تم تحديد الموقع"
+                      : "جاري التحديد..."}
                   </div>
+                  {location && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
+                    </div>
+                  )}
                 </div>
                 {location && (
-                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <Check className="w-4 h-4 text-green-600" />
+                  <div className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center",
+                    isSharingActive 
+                      ? "bg-green-100 dark:bg-green-900/30" 
+                      : "bg-green-100"
+                  )}>
+                    <Check className={cn(
+                      "w-4 h-4",
+                      isSharingActive ? "text-green-600" : "text-green-600"
+                    )} />
                   </div>
                 )}
               </div>
             </Card>
 
-            {/* Duration Selection */}
-            <Card className="p-4 card-shadow">
-              <h3 className="font-medium mb-4 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                مدة المشاركة
-              </h3>
-              <div className="space-y-2">
-                {DURATION_OPTIONS.map((option) => {
-                  const IconComponent = option.icon;
-                  const isSelected = selectedDuration === option.value;
+            {/* Duration Selection - only show when not sharing */}
+            {!isSharingActive && (
+              <>
+                <Card className="p-4 card-shadow">
+                  <h3 className="font-medium mb-4 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-primary" />
+                    مدة المشاركة
+                  </h3>
+                  <div className="space-y-2">
+                    {DURATION_OPTIONS.map((option) => {
+                      const IconComponent = option.icon;
+                      const isSelected = selectedDuration === option.value;
+                      
+                      return (
+                        <button
+                          key={option.value}
+                          onClick={() => setSelectedDuration(option.value)}
+                          className={cn(
+                            "w-full p-4 rounded-xl border-2 text-right transition-all duration-300 relative overflow-hidden group",
+                            isSelected
+                              ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
+                              : "border-border hover:border-primary/50 hover:bg-muted/50"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "absolute top-0 left-0 w-1 h-full bg-primary transition-all duration-300",
+                              isSelected ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          
+                          <div className="flex items-center gap-3">
+                            <div className={cn(
+                              "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300",
+                              isSelected ? option.color + " text-white shadow-lg" : "bg-muted"
+                            )}>
+                              <IconComponent className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="font-medium">{option.label}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {option.description}
+                              </div>
+                            </div>
+                            <div
+                              className={cn(
+                                "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300",
+                                isSelected
+                                  ? "border-primary bg-primary"
+                                  : "border-border group-hover:border-primary/50"
+                              )}
+                            >
+                              {isSelected && (
+                                <Check className="w-4 h-4 text-white animate-in zoom-in duration-200" />
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Card>
+
+                {/* Destination */}
+                <Card className="p-4 card-shadow">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Target className="w-5 h-5 text-primary" />
+                    الوجهة (اختياري)
+                  </h3>
                   
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => setSelectedDuration(option.value)}
-                  className={cn(
-                    "w-full p-4 rounded-xl border-2 text-right transition-all duration-300 relative overflow-hidden group",
-                    isSelected
-                      ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
-                      : "border-border hover:border-primary/50 hover:bg-muted/50"
+                  {/* Quick destinations */}
+                  <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-hide">
+                    {popularDestinations.map((dest) => (
+                      <button
+                        key={dest.name}
+                        onClick={() => setDestination(dest.name)}
+                        className={cn(
+                          "px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all border-2",
+                          destination === dest.name
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-primary/50"
+                        )}
+                      >
+                        <span className="ml-1">{dest.icon}</span>
+                        {dest.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search input */}
+                  <div className="relative">
+                    <Input
+                      placeholder="ابحث عن وجهة..."
+                      value={destination}
+                      onChange={(e) => setDestination(e.target.value)}
+                      className="bg-secondary border-0 rounded-xl pr-10"
+                    />
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  </div>
+                  
+                  {destination && (
+                    <div className="mt-3 p-3 bg-primary/10 rounded-xl flex items-center justify-between animate-in slide-in-from-top duration-200">
+                      <div className="flex items-center gap-2">
+                        <Navigation className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-medium">{destination}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDestination("")}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
                   )}
-                >
-                  {/* Selection indicator */}
+                </Card>
+
+                {/* Privacy Options */}
+                <Card className="p-4 card-shadow">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" />
+                    خيارات الخصوصية
+                  </h3>
+
+                  {/* Ghost Mode */}
                   <div
                     className={cn(
-                      "absolute top-0 left-0 w-1 h-full bg-primary transition-all duration-300",
-                      isSelected ? "opacity-100" : "opacity-0"
+                      "p-4 rounded-xl border-2 mb-3 cursor-pointer transition-all duration-300",
+                      isGhostMode
+                        ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
+                        : "border-border hover:border-primary/50"
                     )}
-                  />
-                  
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300",
-                      isSelected ? option.color + " text-white shadow-lg" : "bg-muted"
-                    )}>
-                      <IconComponent className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium">{option.label}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {option.description}
+                    onClick={() => setIsGhostMode(!isGhostMode)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                        isGhostMode ? "bg-primary text-white" : "bg-muted"
+                      )}>
+                        {isGhostMode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium">الوضع الخفي</div>
+                        <div className="text-xs text-muted-foreground">
+                          إظهار منطقة تقريبية بدلاً من الموقع الدقيق
+                        </div>
+                      </div>
+                      <div
+                        className={cn(
+                          "w-12 h-7 rounded-full p-1 transition-all duration-300",
+                          isGhostMode ? "bg-primary" : "bg-muted"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
+                            isGhostMode ? "translate-x-5" : "translate-x-0"
+                          )}
+                        />
                       </div>
                     </div>
-                    <div
-                      className={cn(
-                        "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-300",
-                        isSelected
-                          ? "border-primary bg-primary"
-                          : "border-border group-hover:border-primary/50"
-                      )}
-                    >
-                      {isSelected && (
-                        <Check className="w-4 h-4 text-white animate-in zoom-in duration-200" />
-                      )}
+                  </div>
+
+                  {/* Restricted Access */}
+                  <div
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
+                      isRestricted
+                        ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                    onClick={() => setIsRestricted(!isRestricted)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
+                        isRestricted ? "bg-primary text-white" : "bg-muted"
+                      )}>
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium">مشاركة خاصة</div>
+                        <div className="text-xs text-muted-foreground">
+                          فقط الأشخاص المحددون يمكنهم رؤية موقعك
+                        </div>
+                      </div>
+                      <div
+                        className={cn(
+                          "w-12 h-7 rounded-full p-1 transition-all duration-300",
+                          isRestricted ? "bg-primary" : "bg-muted"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
+                            isRestricted ? "translate-x-5" : "translate-x-0"
+                          )}
+                        />
+                      </div>
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        </Card>
 
-        {/* Destination */}
-        <Card className="p-4 card-shadow">
-          <h3 className="font-medium mb-3 flex items-center gap-2">
-            <Target className="w-5 h-5 text-primary" />
-            الوجهة (اختياري)
-          </h3>
-          
-          {/* Quick destinations */}
-          <div className="flex gap-2 mb-3 overflow-x-auto pb-2 scrollbar-hide">
-            {popularDestinations.map((dest) => (
-              <button
-                key={dest.name}
-                onClick={() => setDestination(dest.name)}
-                className={cn(
-                  "px-4 py-2 rounded-full text-sm whitespace-nowrap transition-all border-2",
-                  destination === dest.name
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <span className="ml-1">{dest.icon}</span>
-                {dest.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Search input */}
-          <div className="relative">
-            <Input
-              placeholder="ابحث عن وجهة..."
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              className="bg-secondary border-0 rounded-xl pr-10"
-            />
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          </div>
-          
-          {destination && (
-            <div className="mt-3 p-3 bg-primary/10 rounded-xl flex items-center justify-between animate-in slide-in-from-top duration-200">
-              <div className="flex items-center gap-2">
-                <Navigation className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">{destination}</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDestination("")}
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          )}
-        </Card>
-
-        {/* Privacy Options */}
-        <Card className="p-4 card-shadow">
-          <h3 className="font-medium mb-3 flex items-center gap-2">
-            <Shield className="w-5 h-5 text-primary" />
-            خيارات الخصوصية
-          </h3>
-
-          {/* Ghost Mode */}
-          <div
-            className={cn(
-              "p-4 rounded-xl border-2 mb-3 cursor-pointer transition-all duration-300",
-              isGhostMode
-                ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
-                : "border-border hover:border-primary/50"
-            )}
-            onClick={() => setIsGhostMode(!isGhostMode)}
-          >
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                isGhostMode ? "bg-primary text-white" : "bg-muted"
-              )}>
-                <Eye className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">الوضع الخفي</div>
-                <div className="text-xs text-muted-foreground">
-                  إظهار منطقة تقريبية بدلاً من الموقع الدقيق
-                </div>
-              </div>
-              <div
-                className={cn(
-                  "w-12 h-7 rounded-full p-1 transition-all duration-300",
-                  isGhostMode ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
-                    isGhostMode ? "translate-x-5" : "translate-x-0"
-                  )}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Restricted Access */}
-          <div
-            className={cn(
-              "p-4 rounded-xl border-2 cursor-pointer transition-all duration-300",
-              isRestricted
-                ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
-                : "border-border hover:border-primary/50"
-            )}
-            onClick={() => setIsRestricted(!isRestricted)}
-          >
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                isRestricted ? "bg-primary text-white" : "bg-muted"
-              )}>
-                <Lock className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">مشاركة خاصة</div>
-                <div className="text-xs text-muted-foreground">
-                  فقط الأشخاص المحددون يمكنهم رؤية موقعك
-                </div>
-              </div>
-              <div
-                className={cn(
-                  "w-12 h-7 rounded-full p-1 transition-all duration-300",
-                  isRestricted ? "bg-primary" : "bg-muted"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-5 h-5 rounded-full bg-white shadow-md transition-all duration-300",
-                    isRestricted ? "translate-x-5" : "translate-x-0"
-                  )}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Allowed Emails */}
-          {isRestricted && (
-            <div className="mt-4 space-y-3 animate-in slide-in-from-top duration-200">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="أضف بريد إلكتروني..."
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="bg-secondary border-0 rounded-xl"
-                  onKeyDown={(e) => e.key === "Enter" && handleAddEmail()}
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleAddEmail}
-                  className="shrink-0 rounded-xl"
-                >
-                  <Plus className="w-4 h-4" />
-                </Button>
-              </div>
-              {allowedEmails.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {allowedEmails.map((email) => (
-                    <div
-                      key={email}
-                      className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm animate-in zoom-in duration-200"
-                    >
-                      <Users className="w-3 h-3" />
-                      {email}
-                      <button
-                        onClick={() => handleRemoveEmail(email)}
-                        className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+                  {/* Allowed Emails */}
+                  {isRestricted && (
+                    <div className="mt-4 space-y-3 animate-in slide-in-from-top duration-200">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="أضف بريد إلكتروني..."
+                          value={newEmail}
+                          onChange={(e) => setNewEmail(e.target.value)}
+                          className="bg-secondary border-0 rounded-xl"
+                          onKeyDown={(e) => e.key === "Enter" && handleAddEmail()}
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleAddEmail}
+                          className="shrink-0 rounded-xl"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {allowedEmails.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {allowedEmails.map((email) => (
+                            <div
+                              key={email}
+                              className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-sm animate-in zoom-in duration-200"
+                            >
+                              <Users className="w-3 h-3" />
+                              {email}
+                              <button
+                                onClick={() => handleRemoveEmail(email)}
+                                className="hover:bg-primary/20 rounded-full p-0.5 transition-colors"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
+                  )}
+                </Card>
 
-        {/* Share Button */}
-        <Button
-          onClick={handleShare}
-          disabled={isAnimating || !location}
-          className="w-full h-16 text-lg rounded-2xl bg-gradient-to-l from-primary to-teal-dark hover:opacity-90 transition-all duration-300 shadow-lg shadow-primary/30 relative overflow-hidden group"
-        >
-          {/* Animated background */}
-          <div className="absolute inset-0 bg-gradient-to-l from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
-          
-          <div className="flex items-center gap-2 relative z-10">
-            {isAnimating ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>جاري إنشاء الرابط...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5" />
-                <span>شارك موقعك دلوقتي</span>
-                <Share2 className="w-5 h-5" />
+                {/* Share Button */}
+                <Button
+                  onClick={handleShare}
+                  disabled={isAnimating || !location}
+                  className="w-full h-16 text-lg rounded-2xl bg-gradient-to-l from-primary to-teal-dark hover:opacity-90 transition-all duration-300 shadow-lg shadow-primary/30 relative overflow-hidden group"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-l from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-0 transition-transform duration-700" />
+                  
+                  <div className="flex items-center gap-2 relative z-10">
+                    {isAnimating ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>جاري إنشاء الرابط...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5" />
+                        <span>شارك موقعك دلوقتي</span>
+                        <Share2 className="w-5 h-5" />
+                      </>
+                    )}
+                  </div>
+                </Button>
+
+                {/* Help text */}
+                <p className="text-center text-sm text-muted-foreground">
+                  سيتم إنشاء رابط مشفر آمن لمشاركة موقعك
+                </p>
               </>
             )}
-          </div>
-        </Button>
-
-        {/* Help text */}
-        <p className="text-center text-sm text-muted-foreground">
-          سيتم إنشاء رابط مشفر آمن لمشاركة موقعك
-        </p>
           </>
         )}
       </div>
@@ -500,11 +716,16 @@ ${shareLink}
       <BottomNav />
 
       {/* Success Modal */}
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+      <Dialog open={showSuccessModal} onOpenChange={(open) => {
+        setShowSuccessModal(open);
+        if (!open && isSharingActive) {
+          // Don't close if sharing is active - user needs to see the banner
+        }
+      }}>
         <DialogContent className="max-w-sm mx-4 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-center text-lg">
-              تم إنشاء رابط المشاركة
+              تم بدء مشاركة الموقع
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -516,6 +737,17 @@ ${shareLink}
                 </div>
                 <div className="absolute inset-0 rounded-full border-4 border-green-500 animate-ping opacity-20" />
               </div>
+            </div>
+
+            {/* Status */}
+            <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-4 text-center border border-green-200 dark:border-green-800">
+              <div className="flex items-center justify-center gap-2 text-green-700 dark:text-green-400 mb-2">
+                <Radio className="w-4 h-4 animate-pulse" />
+                <span className="font-medium">موقعك بيتحدث الآن</span>
+              </div>
+              <p className="text-sm text-green-600 dark:text-green-400">
+                يتم إرسال موقعك كل ٥ ثواني تلقائياً
+              </p>
             </div>
 
             {/* Share link preview */}
@@ -536,7 +768,7 @@ ${shareLink}
                 <span className="text-sm">
                   الرابط صالح لمدة{" "}
                   {selectedDuration === -1
-                    ? "٢٤ ساعة أو حتى الوصول"
+                    ? "حتى الوصول"
                     : selectedDuration >= 60
                     ? `${selectedDuration / 60} ساعة`
                     : `${selectedDuration} دقيقة`}
@@ -583,6 +815,15 @@ ${shareLink}
             >
               <QrCode className="w-5 h-5 ml-2 text-primary" />
               شارك بـ QR Code
+            </Button>
+
+            {/* Close button */}
+            <Button
+              onClick={() => setShowSuccessModal(false)}
+              variant="ghost"
+              className="w-full rounded-xl"
+            >
+              متابعة المشاركة
             </Button>
           </div>
         </DialogContent>
@@ -637,7 +878,6 @@ ${shareLink}
             {/* Download Button */}
             <Button
               onClick={() => {
-                // Download QR as image
                 const svg = qrRef.current?.querySelector('svg');
                 if (svg) {
                   const svgData = new XMLSerializer().serializeToString(svg);

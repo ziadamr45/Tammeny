@@ -6,7 +6,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DynamicMap } from "@/components/tamenny/map-component";
@@ -18,7 +17,6 @@ import {
   MessageCircle,
   AlertTriangle,
   CheckCircle,
-  ArrowRight,
   Shield,
   Volume2,
   VolumeX,
@@ -39,64 +37,37 @@ import {
   Activity,
   PhoneCall,
   PhoneOff,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface SessionData {
   id: string;
+  encryptedId: string;
   creatorName: string;
+  creatorAvatar?: string;
   status: "active" | "completed" | "expired";
+  currentLat: number | null;
+  currentLng: number | null;
+  destLat: number | null;
+  destLng: number | null;
+  destName: string | null;
+  distance: number;
+  eta: number | null;
+  isGhostMode: boolean;
   startedAt: string;
   expiresAt: string | null;
-  destination: { lat: number; lng: number; name: string } | null;
-  currentLocation: { lat: number; lng: number };
-  eta: number | null;
-  distance: number;
-  speed: number;
-  isGhostMode: boolean;
-  transportMode: "car" | "walking" | "bike";
-  phoneNumber?: string;
 }
-
-// Mock data for demo
-const MOCK_SESSION: SessionData = {
-  id: "demo123",
-  creatorName: "أحمد",
-  status: "active",
-  startedAt: new Date().toISOString(),
-  expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-  destination: {
-    lat: 30.05,
-    lng: 31.25,
-    name: "المكتب",
-  },
-  currentLocation: { lat: 30.04, lng: 31.24 },
-  eta: 15,
-  distance: 2.5,
-  speed: 45,
-  isGhostMode: false,
-  transportMode: "car",
-  phoneNumber: "+201234567890",
-};
-
-// Route points for simulation
-const ROUTE_POINTS = [
-  { lat: 30.04, lng: 31.24 },
-  { lat: 30.042, lng: 31.242 },
-  { lat: 30.044, lng: 31.245 },
-  { lat: 30.046, lng: 31.247 },
-  { lat: 30.048, lng: 31.249 },
-  { lat: 30.05, lng: 31.25 },
-];
 
 export default function ViewerPage() {
   const params = useParams();
   const router = useRouter();
-  const sessionId = params.id as string;
+  const encryptedId = params.id as string;
   
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isNearby, setIsNearby] = useState(false);
   const [hasArrived, setHasArrived] = useState(false);
@@ -104,136 +75,152 @@ export default function ViewerPage() {
   const [showCallModal, setShowCallModal] = useState(false);
   const [message, setMessage] = useState("");
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [showSafetyCheck, setShowSafetyCheck] = useState(false);
   const [etaCountdown, setEtaCountdown] = useState<number | null>(null);
-  const [routeIndex, setRouteIndex] = useState(0);
   const [progressValue, setProgressValue] = useState(0);
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [sendingMessage, setSendingMessage] = useState(false);
-  const mapRef = useRef<HTMLDivElement>(null);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isNearbyRef = useRef(isNearby);
   const hasArrivedRef = useRef(hasArrived);
   const isMutedRef = useRef(isMuted);
-  const callTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Keep isMutedRef in sync
+  // Keep refs in sync
+  useEffect(() => {
+    isNearbyRef.current = isNearby;
+  }, [isNearby]);
+
+  useEffect(() => {
+    hasArrivedRef.current = hasArrived;
+  }, [hasArrived]);
+
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
 
-  useEffect(() => {
-    // Simulate loading session data
-    setTimeout(() => {
-      setSession(MOCK_SESSION);
-      setEtaCountdown(MOCK_SESSION.eta);
-      setLoading(false);
-    }, 1000);
+  // Fetch session data from API
+  const fetchSession = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/location?id=${encodeURIComponent(encryptedId)}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'فشل في تحميل الجلسة');
+      }
 
-    // Simulate location updates with geofencing
-    const interval = setInterval(() => {
-      setSession((prev) => {
-        if (!prev) return null;
-        const newDistance = Math.max(0, prev.distance - 0.1);
-        const newEta = Math.max(0, (prev.eta || 0) - 0.5);
-        
-        // Check geofencing conditions
-        if (newDistance < 0.5 && !isNearbyRef.current) {
-          isNearbyRef.current = true;
-          setTimeout(() => {
-            setIsNearby(true);
-            toast.success("قريب! أقل من ٥٠٠ متر", {
-              icon: <Bell className="w-4 h-4" />,
-            });
-            if ("vibrate" in navigator && !isMutedRef.current) {
-              navigator.vibrate([200, 100, 200]);
-            }
-          }, 0);
-        }
+      // Check if session is expired
+      if (data.session.status === 'expired' || data.session.status === 'completed') {
+        setSession(data.session);
+        setLoading(false);
+        return;
+      }
 
-        if (newDistance < 0.1 && !hasArrivedRef.current) {
-          hasArrivedRef.current = true;
-          setTimeout(() => {
-            setHasArrived(true);
-            toast.success("وصل! 🎉", {
-              icon: <CheckCircle className="w-4 h-4 text-green-500" />,
-              duration: 10000,
-            });
-            if ("vibrate" in navigator && !isMutedRef.current) {
-              navigator.vibrate([500, 100, 500, 100, 500]);
-            }
-          }, 0);
-        }
-        
-        return {
-          ...prev,
-          currentLocation: {
-            lat: prev.currentLocation.lat + 0.001,
-            lng: prev.currentLocation.lng + 0.001,
-          },
-          eta: newEta,
-          distance: newDistance,
-          speed: Math.max(0, prev.speed + (Math.random() - 0.5) * 10),
-        };
+      // Calculate progress based on distance
+      if (data.session.distance && data.session.destLat) {
+        const initialDistance = 5; // Assume 5km initial
+        const progress = Math.min(100, Math.max(0, (1 - data.session.distance / initialDistance) * 100));
+        setProgressValue(progress);
+      }
+
+      // Set session data
+      setSession({
+        id: data.session.id,
+        encryptedId: data.session.encryptedId,
+        creatorName: data.session.creatorName || 'المستخدم',
+        creatorAvatar: data.session.creatorAvatar,
+        status: data.session.status,
+        currentLat: data.session.currentLat,
+        currentLng: data.session.currentLng,
+        destLat: data.session.destLat,
+        destLng: data.session.destLng,
+        destName: data.session.destName,
+        distance: data.session.distance || 0,
+        eta: data.session.eta,
+        isGhostMode: data.session.isGhostMode,
+        startedAt: data.session.startedAt,
+        expiresAt: data.session.expiresAt,
       });
+      
+      // Set ETA countdown
+      if (data.session.eta && !etaCountdown) {
+        setEtaCountdown(data.session.eta);
+      }
+
+      // Check geofencing conditions
+      if (data.session.distance < 0.5 && !isNearbyRef.current) {
+        isNearbyRef.current = true;
+        setTimeout(() => {
+          setIsNearby(true);
+          toast.success("قريب! أقل من ٥٠٠ متر", {
+            icon: <Bell className="w-4 h-4" />,
+          });
+          if ("vibrate" in navigator && !isMutedRef.current) {
+            navigator.vibrate([200, 100, 200]);
+          }
+        }, 0);
+      }
+
+      if (data.session.distance < 0.1 && !hasArrivedRef.current) {
+        hasArrivedRef.current = true;
+        setTimeout(() => {
+          setHasArrived(true);
+          toast.success("وصل! 🎉", {
+            icon: <CheckCircle className="w-4 h-4 text-green-500" />,
+            duration: 10000,
+          });
+          if ("vibrate" in navigator && !isMutedRef.current) {
+            navigator.vibrate([500, 100, 500, 100, 500]);
+          }
+        }, 0);
+      }
+
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'فشل في تحميل الجلسة');
+    } finally {
+      setLoading(false);
       setLastUpdate(new Date());
-    }, 3000);
+    }
+  }, [encryptedId, etaCountdown]);
+
+  // Initial load and polling
+  useEffect(() => {
+    if (!encryptedId) return;
+    
+    fetchSession(); // First load
+    
+    // Poll every 4 seconds
+    pollingRef.current = setInterval(fetchSession, 4000);
+    
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, [encryptedId, fetchSession]);
+
+  // ETA countdown
+  useEffect(() => {
+    if (!etaCountdown || etaCountdown <= 0 || hasArrived) return;
+
+    const interval = setInterval(() => {
+      setEtaCountdown((prev) => (prev && prev > 0 ? prev - 1 : 0));
+    }, 60000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  // Route simulation
-  useEffect(() => {
-    if (!session || hasArrived) return;
-
-    const routeInterval = setInterval(() => {
-      setRouteIndex((prev) => {
-        const next = (prev + 1) % ROUTE_POINTS.length;
-        return next;
-      });
-    }, 2000);
-
-    return () => clearInterval(routeInterval);
-  }, [session, hasArrived]);
-
-  // ETA countdown animation
-  useEffect(() => {
-    if (!session || hasArrived || session.eta === null) return;
-
-    const etaInterval = setInterval(() => {
-      setEtaCountdown((prev) => {
-        if (prev === null || prev <= 0) return 0;
-        return prev - 1;
-      });
-    }, 60000); // Update every minute
-
-    return () => clearInterval(etaInterval);
-  }, [session, hasArrived]);
+  }, [etaCountdown, hasArrived]);
 
   // Progress bar animation
   useEffect(() => {
-    if (!session || hasArrived) return;
+    if (hasArrived || !session?.destLat) return;
 
     const progressInterval = setInterval(() => {
-      setProgressValue((prev) => {
-        const newValue = prev + 0.5;
-        return newValue > 100 ? 100 : newValue;
-      });
+      setProgressValue((prev) => Math.min(100, prev + 0.3));
     }, 500);
 
     return () => clearInterval(progressInterval);
-  }, [session, hasArrived]);
-
-  // Safety check timer
-  useEffect(() => {
-    if (!session || session.status !== "active") return;
-    
-    const safetyTimer = setTimeout(() => {
-      setShowSafetyCheck(true);
-    }, 60000); // Ask for safety check after 1 minute
-
-    return () => clearTimeout(safetyTimer);
-  }, [session]);
+  }, [hasArrived, session?.destLat]);
 
   // Call duration timer
   useEffect(() => {
@@ -281,28 +268,15 @@ export default function ViewerPage() {
     toast.info("تم إنهاء المكالمة");
   };
 
-  const handleSafetyConfirm = () => {
-    setShowSafetyCheck(false);
-    toast.success("شكراً للتأكيد!", {
-      icon: <Heart className="w-4 h-4 text-primary" />,
-    });
-  };
-
   const formatCallDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const getTransportIcon = (mode: string) => {
-    switch (mode) {
-      case "car": return <Car className="w-4 h-4" />;
-      case "walking": return <Footprints className="w-4 h-4" />;
-      case "bike": return <Bike className="w-4 h-4" />;
-      default: return <Car className="w-4 h-4" />;
-    }
-  };
+  const getTransportIcon = () => <Car className="w-4 h-4" />;
 
+  // Loading state
   if (loading) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center">
@@ -320,10 +294,32 @@ export default function ViewerPage() {
     );
   }
 
+  // Error state
+  if (error && !session) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="p-6 text-center max-w-sm card-shadow">
+          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-10 h-10 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">حدث خطأ</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <Button 
+            onClick={() => router.push("/")}
+            className="w-full rounded-xl h-12"
+          >
+            العودة للرئيسية
+          </Button>
+        </Card>
+      </main>
+    );
+  }
+
+  // Session not found
   if (!session) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="p-6 text-center max-w-sm card-shadow hover:shadow-xl transition-all">
+        <Card className="p-6 text-center max-w-sm card-shadow">
           <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
             <AlertTriangle className="w-10 h-10 text-destructive" />
           </div>
@@ -333,7 +329,34 @@ export default function ViewerPage() {
           </p>
           <Button 
             onClick={() => router.push("/")}
-            className="w-full rounded-xl h-12 shadow-lg hover:shadow-xl transition-all"
+            className="w-full rounded-xl h-12"
+          >
+            العودة للرئيسية
+          </Button>
+        </Card>
+      </main>
+    );
+  }
+
+  // Session completed/expired
+  if (session.status === 'completed' || session.status === 'expired') {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="p-6 text-center max-w-sm card-shadow">
+          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-10 h-10 text-green-600" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">
+            {session.status === 'completed' ? 'تم الوصول!' : 'انتهت الجلسة'}
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            {session.status === 'completed' 
+              ? `${session.creatorName} وصل بأمان` 
+              : 'انتهت صلاحية رابط المشاركة'}
+          </p>
+          <Button 
+            onClick={() => router.push("/")}
+            className="w-full rounded-xl h-12"
           >
             العودة للرئيسية
           </Button>
@@ -356,7 +379,7 @@ export default function ViewerPage() {
               آخر تحديث: {lastUpdate.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })}
             </span>
             <button
-              onClick={() => setLastUpdate(new Date())}
+              onClick={fetchSession}
               className="p-2 rounded-full hover:bg-muted transition-colors hover:rotate-180 duration-300"
             >
               <RefreshCw className="w-4 h-4 text-muted-foreground" />
@@ -380,7 +403,7 @@ export default function ViewerPage() {
 
       {/* Status Banner */}
       {hasArrived ? (
-        <div className="bg-gradient-to-l from-green-500 to-green-600 text-white px-4 py-4 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-300">
+        <div className="bg-gradient-to-l from-green-500 to-green-600 text-white px-4 py-4 flex items-center justify-center gap-2">
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
             <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center relative">
@@ -391,13 +414,12 @@ export default function ViewerPage() {
           <Heart className="w-5 h-5 animate-pulse ml-2" />
         </div>
       ) : isNearby ? (
-        <div className="bg-gradient-to-l from-yellow-500 to-orange-500 text-white px-4 py-3 flex items-center justify-center gap-2 animate-in slide-in-from-top duration-300">
+        <div className="bg-gradient-to-l from-yellow-500 to-orange-500 text-white px-4 py-3 flex items-center justify-center gap-2">
           <Zap className="w-5 h-5 animate-bounce" />
           <span className="font-medium">قريب! أقل من ٥٠٠ متر</span>
         </div>
       ) : (
         <div className="bg-gradient-to-l from-primary to-teal-dark text-white px-4 py-3 flex items-center justify-center gap-2 relative overflow-hidden">
-          {/* Animated background */}
           <div className="absolute inset-0 bg-gradient-to-l from-white/0 via-white/10 to-white/0 animate-[shimmer_2s_infinite]" />
           <Navigation className="w-5 h-5 animate-bounce" />
           <span className="font-medium relative z-10">جاري التتبع...</span>
@@ -406,23 +428,34 @@ export default function ViewerPage() {
       )}
 
       {/* Map */}
-      <div ref={mapRef} className="relative h-[40vh] overflow-hidden shrink-0">
-        {/* Real OpenStreetMap */}
-        <DynamicMap
-          center={session.currentLocation}
-          destination={session.destination}
-          showRoute={!!session.destination && !hasArrived}
-          showUserLocation={!hasArrived}
-          markerLabel={session.creatorName}
-          destinationLabel={session.destination?.name || "الوجهة"}
-          className="absolute inset-0 h-full w-full"
-        />
+      <div className="relative h-[40vh] overflow-hidden shrink-0">
+        {session.currentLat && session.currentLng ? (
+          <DynamicMap
+            center={{ lat: session.currentLat, lng: session.currentLng }}
+            destination={session.destLat && session.destLng ? {
+              lat: session.destLat,
+              lng: session.destLng,
+              name: session.destName || 'الوجهة'
+            } : undefined}
+            showRoute={!!session.destLat && !hasArrived}
+            showUserLocation={!hasArrived}
+            markerLabel={session.creatorName}
+            destinationLabel={session.destName || "الوجهة"}
+            className="absolute inset-0 h-full w-full"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-muted-foreground">جاري تحميل الموقع...</p>
+            </div>
+          </div>
+        )}
         
-        {/* Map overlay gradient */}
         <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-background to-transparent pointer-events-none z-10" />
 
         {/* Live route indicator */}
-        {!hasArrived && session.destination && (
+        {!hasArrived && session.destLat && (
           <div className="absolute top-4 left-4 z-20">
             <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-full shadow-lg">
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -437,7 +470,7 @@ export default function ViewerPage() {
         {/* Arrived celebration overlay */}
         {hasArrived && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-20">
-            <div className="text-center animate-in zoom-in duration-500">
+            <div className="text-center">
               <div className="relative">
                 <div className="absolute inset-0 w-24 h-24 rounded-full bg-green-500/30 animate-ping" />
                 <div className="relative w-24 h-24 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-500/30">
@@ -454,12 +487,11 @@ export default function ViewerPage() {
       {/* Info Cards */}
       <div className="px-4 -mt-4 relative z-10 space-y-4">
         {/* ETA Card */}
-        <Card className="p-4 card-shadow border-2 border-primary/20 overflow-hidden relative group hover:shadow-xl transition-all">
-          {/* Decorative element */}
+        <Card className="p-4 card-shadow border-2 border-primary/20 overflow-hidden relative group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-16 translate-x-16 group-hover:scale-150 transition-transform duration-500" />
           
           <div className="grid grid-cols-3 gap-4 relative z-10">
-            {/* ETA with countdown */}
+            {/* ETA */}
             <div className="text-center">
               <div className="flex items-center justify-center gap-1 text-muted-foreground text-sm mb-1">
                 <Timer className="w-4 h-4" />
@@ -498,14 +530,14 @@ export default function ViewerPage() {
                 <span>السرعة</span>
               </div>
               <div className="text-3xl font-bold">
-                {Math.round(session.speed)}
+                —
               </div>
               <div className="text-xs text-muted-foreground">كم/س</div>
             </div>
           </div>
 
-          {/* Animated Progress bar */}
-          {session.destination && !hasArrived && (
+          {/* Progress bar */}
+          {session.destLat && !hasArrived && (
             <div className="mt-4 relative z-10">
               <div className="flex items-center justify-between text-sm mb-2">
                 <span className="text-muted-foreground flex items-center gap-1">
@@ -521,13 +553,12 @@ export default function ViewerPage() {
                   className="h-full bg-gradient-to-l from-primary to-teal-light rounded-full transition-all duration-300 relative overflow-hidden"
                   style={{ width: `${progressValue}%` }}
                 >
-                  {/* Shimmer effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_infinite]" />
                 </div>
               </div>
               <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                 <span>نقطة البداية</span>
-                <span>{session.destination.name}</span>
+                <span>{session.destName}</span>
               </div>
             </div>
           )}
@@ -535,7 +566,6 @@ export default function ViewerPage() {
 
         {/* Sender Info */}
         <Card className="p-4 card-shadow hover:shadow-lg transition-all group overflow-hidden relative">
-          {/* Decorative background */}
           <div className="absolute inset-0 bg-gradient-to-l from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           
           <div className="flex items-center gap-4 relative z-10">
@@ -552,14 +582,13 @@ export default function ViewerPage() {
                   مشفر AES-256
                 </Badge>
                 <Badge variant="secondary" className="gap-1">
-                  {getTransportIcon(session.transportMode)}
-                  {session.transportMode === "car" ? "سيارة" : session.transportMode === "walking" ? "مشي" : "دراجة"}
+                  {getTransportIcon()}
+                  سيارة
                 </Badge>
               </div>
             </div>
           </div>
           
-          {/* Privacy status */}
           <div className="mt-4 p-3 bg-muted/50 rounded-xl flex items-center gap-2 relative z-10">
             {session.isGhostMode ? (
               <>
@@ -575,23 +604,21 @@ export default function ViewerPage() {
           </div>
         </Card>
 
-        {/* Actions - Chat & Call */}
+        {/* Actions */}
         <div className="grid grid-cols-2 gap-3">
           <Button
             variant="outline"
-            className="h-14 rounded-xl text-primary border-primary hover:bg-primary/10 hover:shadow-lg transition-all group relative overflow-hidden"
+            className="h-14 rounded-xl text-primary border-primary hover:bg-primary/10 transition-all group"
             onClick={() => setShowMessageModal(true)}
           >
-            <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/5 transition-colors" />
             <MessageCircle className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
             رسالة
           </Button>
           <Button
             variant="outline"
-            className="h-14 rounded-xl text-green-600 border-green-600 hover:bg-green-50 hover:shadow-lg transition-all group relative overflow-hidden"
+            className="h-14 rounded-xl text-green-600 border-green-600 hover:bg-green-50 transition-all group"
             onClick={handleStartCall}
           >
-            <div className="absolute inset-0 bg-green-50/0 group-hover:bg-green-50/50 transition-colors" />
             <Phone className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
             اتصال
           </Button>
@@ -604,51 +631,42 @@ export default function ViewerPage() {
             تفاصيل الرحلة
           </h3>
           <div className="space-y-4">
-            {/* Start time */}
             <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors group">
               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Clock className="w-5 h-5 text-primary" />
               </div>
               <div className="flex-1">
                 <div className="text-sm text-muted-foreground">بدأت منذ</div>
-                <div className="font-medium">٥ دقائق</div>
+                <div className="font-medium">
+                  {session.startedAt 
+                    ? Math.round((Date.now() - new Date(session.startedAt).getTime()) / 60000) 
+                    : 0} دقيقة
+                </div>
               </div>
               <Badge variant="secondary" className="bg-green-100 text-green-700">
                 نشطة
               </Badge>
             </div>
             
-            {/* Destination */}
-            {session.destination && (
+            {session.destName && (
               <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors group">
                 <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center group-hover:scale-110 transition-transform">
                   <MapPin className="w-5 h-5 text-green-600" />
                 </div>
                 <div className="flex-1">
                   <div className="text-sm text-muted-foreground">الوجهة</div>
-                  <div className="font-medium">{session.destination.name}</div>
+                  <div className="font-medium">{session.destName}</div>
                 </div>
                 <Badge variant="secondary" className="bg-green-100 text-green-700">
                   {session.distance.toFixed(1)} كم
                 </Badge>
               </div>
             )}
-
-            {/* ETA trend */}
-            <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted/50 transition-colors group">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <TrendingDown className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm text-muted-foreground">متوسط السرعة</div>
-                <div className="font-medium">{Math.round(session.speed)} كم/ساعة</div>
-              </div>
-            </div>
           </div>
         </Card>
 
         {/* Privacy Notice */}
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2 hover:text-primary transition-colors">
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2">
           <Shield className="w-4 h-4 text-primary" />
           <span>موقعك في أمان - لن يتم مشاركته مع أي شخص</span>
         </div>
@@ -670,14 +688,13 @@ export default function ViewerPage() {
               <span className="font-medium">{session.creatorName}</span>
             </div>
             
-            {/* Quick messages */}
             <div className="flex flex-wrap gap-2">
               {["طمنّي عليك!", "وصلت؟", "استنى شوية", "أنا في الطريق"].map((msg) => (
                 <button
                   key={msg}
                   onClick={() => setMessage(msg)}
                   className={cn(
-                    "px-3 py-1.5 rounded-full text-sm border-2 transition-all hover:shadow-md",
+                    "px-3 py-1.5 rounded-full text-sm border-2 transition-all",
                     message === msg
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border hover:border-primary/50"
@@ -693,7 +710,7 @@ export default function ViewerPage() {
                 placeholder="اكتب رسالتك..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="bg-secondary border-0 rounded-xl pr-10 focus:ring-2 focus:ring-primary"
+                className="bg-secondary border-0 rounded-xl pr-10"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && message.trim()) {
                     handleSendMessage();
@@ -703,7 +720,7 @@ export default function ViewerPage() {
               <Button
                 size="icon"
                 variant="ghost"
-                className="absolute left-2 top-1/2 -translate-y-1/2 text-primary hover:text-primary/80"
+                className="absolute left-2 top-1/2 -translate-y-1/2 text-primary"
                 onClick={handleSendMessage}
                 disabled={!message.trim() || sendingMessage}
               >
@@ -713,7 +730,7 @@ export default function ViewerPage() {
             
             <Button
               onClick={handleSendMessage}
-              className="w-full h-12 rounded-xl bg-primary hover:shadow-lg transition-all"
+              className="w-full h-12 rounded-xl bg-primary"
               disabled={!message.trim() || sendingMessage}
             >
               {sendingMessage ? (
@@ -736,7 +753,6 @@ export default function ViewerPage() {
       <Dialog open={showCallModal} onOpenChange={setShowCallModal}>
         <DialogContent className="max-w-sm mx-4 rounded-2xl">
           <div className="space-y-6 py-8">
-            {/* Caller info */}
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 {isCallActive && (
@@ -766,7 +782,6 @@ export default function ViewerPage() {
               </div>
             </div>
 
-            {/* Call status indicator */}
             {isCallActive && (
               <div className="flex justify-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -775,53 +790,14 @@ export default function ViewerPage() {
               </div>
             )}
 
-            {/* Call actions */}
             <div className="flex justify-center gap-4">
               <Button
                 size="lg"
                 variant="destructive"
-                className="w-16 h-16 rounded-full shadow-lg hover:shadow-xl transition-all"
+                className="w-16 h-16 rounded-full shadow-lg"
                 onClick={handleEndCall}
               >
                 <PhoneOff className="w-6 h-6" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Safety Check Modal */}
-      <Dialog open={showSafetyCheck} onOpenChange={setShowSafetyCheck}>
-        <DialogContent className="max-w-sm mx-4 rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-center">تأكيد الأمان</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex justify-center">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-                <div className="relative w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Heart className="w-10 h-10 text-primary animate-pulse" />
-                </div>
-              </div>
-            </div>
-            <p className="text-center text-muted-foreground">
-              هل أنت بخير؟ تم التتبع لمدة دقيقة.
-            </p>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 rounded-xl hover:bg-muted transition-colors"
-                onClick={() => setShowSafetyCheck(false)}
-              >
-                لاحقاً
-              </Button>
-              <Button
-                className="flex-1 rounded-xl bg-primary hover:shadow-lg transition-all"
-                onClick={handleSafetyConfirm}
-              >
-                <CheckCircle className="w-4 h-4 ml-2" />
-                أنا بخير
               </Button>
             </div>
           </div>

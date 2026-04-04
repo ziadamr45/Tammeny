@@ -6,7 +6,7 @@ import { verifyToken } from '@/lib/auth';
 export async function PUT(request: NextRequest) {
   try {
     // Get token from cookies
-    const token = request.cookies.get('token')?.value;
+    const token = request.cookies.get('auth-token')?.value;
     
     if (!token) {
       return NextResponse.json(
@@ -16,7 +16,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify token
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { success: false, error: 'جلسة غير صالحة' },
@@ -73,7 +73,7 @@ export async function PUT(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     // Get token from cookies
-    const token = request.cookies.get('token')?.value;
+    const token = request.cookies.get('auth-token')?.value;
     
     if (!token) {
       return NextResponse.json(
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify token
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (!decoded || !decoded.userId) {
       return NextResponse.json(
         { success: false, error: 'جلسة غير صالحة' },
