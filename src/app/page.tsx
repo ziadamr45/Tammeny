@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSavedLocation } from "@/hooks/use-saved-location";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
+import { SplashScreen } from "@/components/tamenny/splash-screen";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
@@ -40,6 +41,9 @@ export default function HomePage() {
   // Auth protection
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
+  
+  // Splash screen state
+  const [showSplash, setShowSplash] = useState(true);
   
   // Saved location - loads last known location instantly
   const { savedLocation, saveLocation } = useSavedLocation();
@@ -681,6 +685,12 @@ ${data.shareUrl}
   };
 
   return (
+    <>
+      {/* Splash Screen */}
+      {showSplash && (
+        <SplashScreen onComplete={() => setShowSplash(false)} duration={2500} />
+      )}
+    
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
       {/* Auth Loading */}
       {!authChecked && (
@@ -1308,6 +1318,7 @@ ${data.shareUrl}
         }
       `}</style>
     </main>
+    </>
   );
 }
 
