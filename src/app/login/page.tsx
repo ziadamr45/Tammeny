@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft, ArrowRight, HeadphonesIcon, FileText } from "lucide-react";
+import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft, Zap, HeadphonesIcon } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { LogoInline } from "@/components/tamenny/logo";
@@ -54,18 +54,8 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col">
-      {/* Header */}
-      <div className="p-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 rounded-full hover:bg-muted transition-colors"
-        >
-          <ArrowRight className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Logo Section */}
-      <div className="flex flex-col items-center pt-4 pb-6">
+      <div className="flex flex-col items-center pt-12 pb-6">
         <LogoInline size="lg" showText />
       </div>
 
@@ -176,37 +166,26 @@ export default function LoginPage() {
           </p>
         </Card>
 
-        {/* Security Info */}
-        <div className="mt-6 p-4 rounded-xl bg-primary/5 flex items-center gap-3">
-          <Shield className="w-8 h-8 text-primary shrink-0" />
-          <div>
-            <p className="font-medium text-sm">مشفر بالكامل</p>
-            <p className="text-xs text-muted-foreground">
-              بياناتك محمية بتشفير AES-256
-            </p>
+        {/* App Features */}
+        <div className="flex justify-center gap-6 mt-8">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-primary" />
+            </div>
+            <span className="text-xs text-muted-foreground">تسجيل سريع</span>
           </div>
-        </div>
-
-        {/* Bottom Icons */}
-        <div className="flex justify-center gap-8 mt-8">
-          <Link href="/help" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <HeadphonesIcon className="w-5 h-5" />
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs">خدمة العملاء</span>
-          </Link>
-          <Link href="/privacy" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <Shield className="w-5 h-5" />
+            <span className="text-xs text-muted-foreground">حماية البيانات</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <HeadphonesIcon className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs">سياسة الخصوصية</span>
-          </Link>
-          <Link href="/terms" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <FileText className="w-5 h-5" />
-            </div>
-            <span className="text-xs">الشروط</span>
-          </Link>
+            <span className="text-xs text-muted-foreground">دعم العملاء</span>
+          </div>
         </div>
       </div>
     </main>

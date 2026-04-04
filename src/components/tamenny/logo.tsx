@@ -40,7 +40,7 @@ export function Logo({ size = "md", showText = true, className }: LogoProps) {
           <h1 className={cn("font-bold text-primary", sizeMap[size].text)}>
             طمنّي
           </h1>
-          <p className="text-muted-foreground text-xs">أمان.. وثقة</p>
+          <p className="text-muted-foreground text-xs">أمان.. وخصوصية</p>
         </div>
       )}
     </div>
@@ -135,7 +135,7 @@ export function LogoInline({ size = "md", showText = true, className }: LogoProp
           <h1 className={cn("font-bold text-primary", sizeMap[size].text)}>
             طمنّي
           </h1>
-          <p className="text-muted-foreground text-xs">أمان.. وثقة</p>
+          <p className="text-muted-foreground text-xs">أمان.. وخصوصية</p>
         </div>
       )}
     </div>

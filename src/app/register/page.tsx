@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, User, Mail, Lock, Eye, EyeOff, ArrowLeft, Check, X, HeadphonesIcon, FileText, Scale } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, Zap, Shield, HeadphonesIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogoInline } from "@/components/tamenny/logo";
@@ -16,6 +17,7 @@ export default function RegisterPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState<"male" | "female">("male");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -64,6 +66,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!agreedToTerms) {
+      toast.error("يجب الموافقة على شروط الخدمة وسياسة الخصوصية");
+      return;
+    }
+
     setLoading(true);
     
     try {
@@ -93,18 +100,8 @@ export default function RegisterPage() {
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col">
-      {/* Header */}
-      <div className="p-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 rounded-full hover:bg-muted transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-      </div>
-
       {/* Logo Section */}
-      <div className="flex flex-col items-center pt-4 pb-6">
+      <div className="flex flex-col items-center pt-12 pb-6">
         <LogoInline size="lg" showText />
       </div>
 
@@ -113,7 +110,7 @@ export default function RegisterPage() {
         <Card className="p-6 shadow-sm border-0 bg-white dark:bg-card">
           <h2 className="text-xl font-bold text-center mb-2">أنشئ حسابك الجديد</h2>
           <p className="text-muted-foreground text-sm text-center mb-6">
-            انضم إلى آلاف المستخدمين الذين يثقون في طمنّي
+            أدخل بياناتك الشخصية للبدء في رحلتك مع طمنّي
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -234,10 +231,31 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* Terms Agreement Checkbox */}
+            <div className="flex items-start gap-3 py-2">
+              <Checkbox
+                id="terms"
+                checked={agreedToTerms}
+                onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
+                className="mt-1 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+              />
+              <label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
+                أوافق على{" "}
+                <Link href="/terms" className="text-primary font-medium hover:underline">
+                  شروط الخدمة
+                </Link>
+                {" "}و{" "}
+                <Link href="/privacy" className="text-primary font-medium hover:underline">
+                  سياسة الخصوصية
+                </Link>
+                {" "}الخاصة بـ طمنّي
+              </label>
+            </div>
+
             {/* Submit Button */}
             <Button
               type="submit"
-              className="w-full h-12 text-base font-bold rounded-xl mt-6 bg-primary hover:bg-primary/90"
+              className="w-full h-12 text-base font-bold rounded-xl mt-4 bg-primary hover:bg-primary/90"
               disabled={loading}
             >
               {loading ? (
@@ -267,41 +285,28 @@ export default function RegisterPage() {
           >
             تسجيل الدخول
           </Button>
-
-          {/* Terms Text */}
-          <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
-            من خلال إنشاء حسابك، فإنك توافق على{" "}
-            <Link href="/terms" className="text-primary font-medium hover:underline">
-              شروط الخدمة
-            </Link>
-            {" "}و{" "}
-            <Link href="/privacy" className="text-primary font-medium hover:underline">
-              سياسة الخصوصية
-            </Link>
-            {" "}الخاصة بـ طمنّي
-          </p>
         </Card>
 
-        {/* Bottom Icons */}
-        <div className="flex justify-center gap-8 mt-8">
-          <Link href="/help" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <HeadphonesIcon className="w-5 h-5" />
+        {/* App Features */}
+        <div className="flex justify-center gap-6 mt-8">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Zap className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs">خدمة العملاء</span>
-          </Link>
-          <Link href="/privacy" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <Shield className="w-5 h-5" />
+            <span className="text-xs text-muted-foreground">تسجيل سريع</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Shield className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs">سياسة الخصوصية</span>
-          </Link>
-          <Link href="/terms" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-primary transition-colors">
-            <div className="w-10 h-10 rounded-full bg-[#E9ECEF] dark:bg-secondary flex items-center justify-center">
-              <FileText className="w-5 h-5" />
+            <span className="text-xs text-muted-foreground">حماية البيانات</span>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <HeadphonesIcon className="w-5 h-5 text-primary" />
             </div>
-            <span className="text-xs">الشروط</span>
-          </Link>
+            <span className="text-xs text-muted-foreground">دعم العملاء</span>
+          </div>
         </div>
       </div>
     </main>
