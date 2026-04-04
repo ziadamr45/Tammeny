@@ -36,7 +36,7 @@ export async function DELETE(
 
     // Delete related records first (locations, allowed users, messages)
     await db.$transaction([
-      db.location.deleteMany({ where: { sessionId: id } }),
+      db.locationPoint.deleteMany({ where: { sessionId: id } }),
       db.allowedUser.deleteMany({ where: { sessionId: id } }),
       db.message.deleteMany({ where: { sessionId: id } }),
       db.session.delete({ where: { id } }),
