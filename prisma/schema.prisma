@@ -44,6 +44,7 @@ model User {
   lastLocationUpdated DateTime? // When the location was last updated
   
   // Settings
+  language          String    @default("ar") // "ar" | "en"
   stealthMode       Boolean   @default(false) // وضع الصمت
   darkMode          Boolean   @default(false) // الوضع الليلي
   batterySaver      Boolean   @default(false) // توفير البطارية

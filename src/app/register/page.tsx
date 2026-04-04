@@ -7,14 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, Shield, Database, RefreshCw, HeadphonesIcon } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff, ArrowLeft, Shield, Database, RefreshCw, HeadphonesIcon, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LogoInline } from "@/components/tamenny/logo";
 import Link from "next/link";
+import { useLanguage } from "@/contexts/language-context";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { language, setLanguage, t, direction } = useLanguage();
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState<"male" | "female">("male");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -29,17 +31,17 @@ export default function RegisterPage() {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.password) {
-      toast.error("جميع الحقول مطلوبة");
+      toast.error(t.register.errors.allFieldsRequired);
       return;
     }
 
     if (formData.password.length < 6) {
-      toast.error("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      toast.error(t.register.errors.passwordMinLength);
       return;
     }
 
     if (!agreedToTerms) {
-      toast.error("يجب الموافقة على شروط الاستخدام وسياسة الخصوصية");
+      toast.error(t.register.errors.mustAgreeTerms);
       return;
     }
 
@@ -58,28 +60,41 @@ export default function RegisterPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "حدث خطأ أثناء التسجيل");
+        throw new Error(data.error || t.register.errors.registrationFailed);
       }
 
-      toast.success("تم إنشاء الحساب بنجاح!");
+      toast.success(t.register.errors.accountCreated);
       router.push("/");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "حدث خطأ أثناء التسجيل");
+      toast.error(error instanceof Error ? error.message : t.register.errors.registrationFailed);
     } finally {
       setLoading(false);
     }
   };
 
+  const toggleLanguage = () => {
+    setLanguage(language === 'ar' ? 'en' : 'ar');
+  };
+
   return (
     <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col items-center py-8 px-4">
-      {/* Customer Service Button - Top Right */}
-      <div className="w-full max-w-md flex justify-start mb-4">
+      {/* Language Toggle & Customer Service - Top */}
+      <div className="w-full max-w-md flex justify-between mb-4">
         <Link href="/help">
           <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-primary">
             <HeadphonesIcon className="w-5 h-5" />
-            <span className="text-sm">خدمة العملاء</span>
+            <span className="text-sm">{t.register.customerService}</span>
           </Button>
         </Link>
+        
+        <Button
+          variant="ghost"
+          onClick={toggleLanguage}
+          className="gap-2 text-muted-foreground hover:text-primary"
+        >
+          <Globe className="w-5 h-5" />
+          <span className="text-sm">{language === 'ar' ? 'EN' : 'عربي'}</span>
+        </Button>
       </div>
 
       {/* Logo Section */}
@@ -90,62 +105,83 @@ export default function RegisterPage() {
       {/* Form Card */}
       <Card className="w-full max-w-md p-6 shadow-lg border-0 bg-white dark:bg-card rounded-2xl">
         {/* Title */}
-        <h1 className="text-2xl font-bold text-center mb-2 text-foreground">انشئ حسابك الجديد</h1>
+        <h1 className="text-2xl font-bold text-center mb-2 text-foreground">{t.register.title}</h1>
         <p className="text-muted-foreground text-sm text-center mb-6 leading-relaxed">
-          ابدأ رحلتك معنا في تجربة أمان وخصوصية فريدة
+          {t.register.subtitle}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Name Field */}
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-semibold text-foreground">الاسم</Label>
+            <Label htmlFor="name" className="text-sm font-semibold text-foreground">{t.register.name}</Label>
             <div className="relative">
               <Input
                 id="name"
                 type="text"
-                placeholder="أدخل اسمك الكامل"
+                placeholder={t.register.namePlaceholder}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="pr-12 h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+                className={cn(
+                  "h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50",
+                  direction === 'rtl' ? 'pr-12' : 'pl-12'
+                )}
               />
-              <User className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <User className={cn(
+                "absolute top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground",
+                direction === 'rtl' ? 'right-4' : 'left-4'
+              )} />
             </div>
           </div>
 
           {/* Email Field */}
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-semibold text-foreground">البريد الإلكتروني</Label>
+            <Label htmlFor="email" className="text-sm font-semibold text-foreground">{t.register.email}</Label>
             <div className="relative">
               <Input
                 id="email"
                 type="email"
-                placeholder="name@example.com"
+                placeholder={t.register.emailPlaceholder}
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="pr-12 h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+                className={cn(
+                  "h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50",
+                  direction === 'rtl' ? 'pr-12' : 'pl-12'
+                )}
                 dir="ltr"
               />
-              <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Mail className={cn(
+                "absolute top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground",
+                direction === 'rtl' ? 'right-4' : 'left-4'
+              )} />
             </div>
           </div>
 
           {/* Password Field */}
           <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-semibold text-foreground">كلمة المرور</Label>
+            <Label htmlFor="password" className="text-sm font-semibold text-foreground">{t.register.password}</Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder={t.register.passwordPlaceholder}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="pr-12 pl-12 h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+                className={cn(
+                  "h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50",
+                  direction === 'rtl' ? 'pr-12 pl-12' : 'pl-12 pr-12'
+                )}
               />
-              <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Lock className={cn(
+                "absolute top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground",
+                direction === 'rtl' ? 'right-4' : 'left-4'
+              )} />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                className={cn(
+                  "absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
+                  direction === 'rtl' ? 'left-4' : 'right-4'
+                )}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -154,7 +190,7 @@ export default function RegisterPage() {
 
           {/* Gender Selection */}
           <div className="space-y-2">
-            <Label className="text-sm font-semibold text-foreground">الجنس</Label>
+            <Label className="text-sm font-semibold text-foreground">{t.register.gender}</Label>
             <div className="flex gap-3">
               <button
                 type="button"
@@ -167,7 +203,7 @@ export default function RegisterPage() {
                 )}
               >
                 <span className="text-xl">♂</span>
-                <span>ذكر</span>
+                <span>{t.register.male}</span>
               </button>
               <button
                 type="button"
@@ -180,7 +216,7 @@ export default function RegisterPage() {
                 )}
               >
                 <span className="text-xl">♀</span>
-                <span>أنثى</span>
+                <span>{t.register.female}</span>
               </button>
             </div>
           </div>
@@ -194,15 +230,15 @@ export default function RegisterPage() {
               className="mt-0.5 h-5 w-5 rounded data-[state=checked]:bg-primary data-[state=checked]:border-primary"
             />
             <label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed cursor-pointer">
-              أوافق على{" "}
+              {t.register.agreeTerms}{" "}
               <Link href="/terms" className="text-primary font-medium hover:underline">
-                شروط الاستخدام
+                {t.register.termsOfService}
               </Link>
-              {" "}و{" "}
+              {" "}{t.register.and}{" "}
               <Link href="/privacy" className="text-primary font-medium hover:underline">
-                سياسة الخصوصية
+                {t.register.privacyPolicy}
               </Link>
-              {" "}لـ طمنّي
+              {" "}{t.register.forApp}
             </label>
           </div>
 
@@ -216,8 +252,8 @@ export default function RegisterPage() {
               <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
               <>
-                أنشئ حساب!
-                <ArrowLeft className="w-5 h-5 mr-2" />
+                {t.register.createButton}
+                <ArrowLeft className={cn("w-5 h-5", direction === 'rtl' ? 'mr-2' : 'ml-2 rotate-180')} />
               </>
             )}
           </Button>
@@ -226,7 +262,7 @@ export default function RegisterPage() {
         {/* Divider */}
         <div className="flex items-center gap-4 my-6">
           <div className="flex-1 h-px bg-border" />
-          <span className="text-muted-foreground text-sm font-medium">أو</span>
+          <span className="text-muted-foreground text-sm font-medium">{t.register.or}</span>
           <div className="flex-1 h-px bg-border" />
         </div>
 
@@ -237,20 +273,20 @@ export default function RegisterPage() {
           className="w-full h-14 text-lg font-semibold rounded-xl border-2 border-primary text-primary hover:bg-primary/5"
           onClick={() => router.push("/login")}
         >
-          تسجيل الدخول
+          {t.register.login}
         </Button>
 
         {/* Terms Text */}
         <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
-          من خلال إنشاء حسابك، فإنك توافق على{" "}
+          {t.register.termsText}{" "}
           <Link href="/terms" className="text-primary font-medium hover:underline">
-            شروط الاستخدام
+            {t.register.termsOfService}
           </Link>
-          {" "}و{" "}
+          {" "}{t.register.and}{" "}
           <Link href="/privacy" className="text-primary font-medium hover:underline">
-            سياسة الخصوصية
+            {t.register.privacyPolicy}
           </Link>
-          {" "}لـ طمنّي
+          {" "}{t.register.forApp}
         </p>
       </Card>
 
@@ -260,19 +296,19 @@ export default function RegisterPage() {
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
             <Shield className="w-6 h-6 text-primary" />
           </div>
-          <span className="text-xs text-muted-foreground font-medium">اتصال آمن</span>
+          <span className="text-xs text-muted-foreground font-medium">{t.register.features.secureConnection}</span>
         </div>
         <div className="flex flex-col items-center gap-2">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
             <Database className="w-6 h-6 text-primary" />
           </div>
-          <span className="text-xs text-muted-foreground font-medium">حماية بيانات</span>
+          <span className="text-xs text-muted-foreground font-medium">{t.register.features.dataProtection}</span>
         </div>
         <div className="flex flex-col items-center gap-2">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
             <RefreshCw className="w-6 h-6 text-primary" />
           </div>
-          <span className="text-xs text-muted-foreground font-medium">تزامن فوري</span>
+          <span className="text-xs text-muted-foreground font-medium">{t.register.features.instantSync}</span>
         </div>
       </div>
     </main>

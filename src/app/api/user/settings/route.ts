@@ -25,10 +25,10 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { stealthMode, darkMode, batterySaver, notificationsEnabled } = body;
+    const { stealthMode, darkMode, batterySaver, notificationsEnabled, language } = body;
 
     // Build update object with only provided fields
-    const updateData: Record<string, boolean> = {};
+    const updateData: Record<string, boolean | string> = {};
     
     if (typeof stealthMode === 'boolean') {
       updateData.stealthMode = stealthMode;
@@ -42,6 +42,9 @@ export async function PUT(request: NextRequest) {
     if (typeof notificationsEnabled === 'boolean') {
       updateData.notificationsEnabled = notificationsEnabled;
     }
+    if (typeof language === 'string' && (language === 'ar' || language === 'en')) {
+      updateData.language = language;
+    }
 
     // Update user settings
     const updatedUser = await db.user.update({
@@ -49,6 +52,7 @@ export async function PUT(request: NextRequest) {
       data: updateData,
       select: {
         id: true,
+        language: true,
         stealthMode: true,
         darkMode: true,
         batterySaver: true,
@@ -96,6 +100,7 @@ export async function GET(request: NextRequest) {
       where: { id: decoded.userId },
       select: {
         id: true,
+        language: true,
         stealthMode: true,
         darkMode: true,
         batterySaver: true,
