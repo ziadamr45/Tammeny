@@ -144,22 +144,49 @@ export default function ProfilePage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const newAvatar = reader.result as string;
-        if (isEditing) {
-          setEditedProfile({ ...editedProfile, avatar: newAvatar });
+    if (!file) return;
+
+    // Check file size (max 5MB raw)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("حجم الصورة يجب أن يكون أقل من 5 ميجابايت");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Compress image using canvas
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 200;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
         } else {
-          setLocalProfileOverrides({ ...localProfileOverrides, avatar: newAvatar });
+          if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+
+        if (isEditing) {
+          setEditedProfile({ ...editedProfile, avatar: compressed });
+        } else {
+          setLocalProfileOverrides({ ...localProfileOverrides, avatar: compressed });
         }
         toast.success("تم تحديث الصورة الشخصية!");
       };
-      reader.readAsDataURL(file);
-    }
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
+    if (!passwords.current) {
+      toast.error("يرجى إدخال كلمة المرور الحالية");
+      return;
+    }
     if (passwords.new !== passwords.confirm) {
       toast.error("كلمة المرور الجديدة غير متطابقة!");
       return;
@@ -168,15 +195,44 @@ export default function ProfilePage() {
       toast.error("كلمة المرور يجب أن تكون 8 أحرف على الأقل!");
       return;
     }
-    setShowPasswordDialog(false);
-    setPasswords({ current: "", new: "", confirm: "" });
-    toast.success("تم تغيير كلمة المرور بنجاح!");
+
+    try {
+      const response = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwords.current,
+          newPassword: passwords.new,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setShowPasswordDialog(false);
+        setPasswords({ current: '', new: '', confirm: '' });
+        toast.success("تم تغيير كلمة المرور بنجاح!");
+      } else {
+        toast.error(data.error || "فشل في تغيير كلمة المرور");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء تغيير كلمة المرور");
+    }
   };
 
-  const handleDeleteAccount = () => {
-    setShowDeleteDialog(false);
-    toast.error("تم حذف الحساب!", { duration: 5000 });
-    router.push("/");
+  const handleDeleteAccount = async () => {
+    try {
+      const response = await fetch('/api/user', { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) {
+        setShowDeleteDialog(false);
+        await fetch('/api/auth/logout', { method: 'POST' });
+        toast.success("تم حذف الحساب بنجاح");
+        router.push('/login');
+      } else {
+        toast.error(data.error || "فشل في حذف الحساب");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء حذف الحساب");
+    }
   };
 
   return (

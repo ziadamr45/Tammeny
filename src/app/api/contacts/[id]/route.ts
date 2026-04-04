@@ -38,7 +38,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch contact' },
+      { success: false, error: 'فشل في الحصول على جهة الاتصال' },
       { status: 500 }
     );
   }
@@ -86,7 +86,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update contact' },
+      { success: false, error: 'فشل في تحديث جهة الاتصال' },
       { status: 500 }
     );
   }
@@ -111,7 +111,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete contact' },
+      { success: false, error: 'فشل في حذف جهة الاتصال' },
       { status: 500 }
     );
   }

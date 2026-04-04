@@ -17,6 +17,31 @@ export async function GET(
       );
     }
 
+    // Get user data for profile completeness check
+    const dbUser = await db.user.findUnique({
+      where: { id: user.userId },
+      select: { phone: true, name: true, gender: true },
+    });
+
+    // Calculate real safety score for this trip
+    const [emergencyContactsCount, safeZonesCount, arrivedSafeCount] = await Promise.all([
+      db.emergencyContact.count({ where: { userId: user.userId } }),
+      db.safeZone.count({ where: { userId: user.userId } }),
+      db.arrivedSafe.count({ where: { userId: user.userId } }),
+    ]);
+    const completedTrips = await db.session.count({
+      where: { creatorId: user.userId, status: 'completed' },
+    });
+    const profileComplete = !!(dbUser?.phone && dbUser?.name && dbUser?.gender);
+
+    let safetyScore = 0;
+    safetyScore += Math.min(30, completedTrips * 3);
+    safetyScore += Math.min(25, emergencyContactsCount * 8);
+    safetyScore += Math.min(20, safeZonesCount * 5);
+    safetyScore += Math.min(15, arrivedSafeCount * 3);
+    if (profileComplete) safetyScore += 10;
+    safetyScore = Math.min(100, safetyScore);
+
     const { id } = await params;
 
     // Get session/trip data
@@ -103,7 +128,7 @@ export async function GET(
         .filter(au => au.userId)
         .map(au => userMap.get(au.userId!)?.name)
         .filter((name): name is string => !!name),
-      safetyScore: 95, // Default - could be calculated based on various factors
+      safetyScore,
       originCoords: session.locations[0] ? 
         { lat: session.locations[0].lat, lng: session.locations[0].lng, name: 'نقطة البداية' } :
         { lat: session.startLat, lng: session.startLng, name: 'نقطة البداية' },

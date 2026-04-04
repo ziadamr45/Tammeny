@@ -40,7 +40,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching safe zone:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch safe zone' },
+      { success: false, error: 'فشل في الحصول على المنطقة الآمنة' },
       { status: 500 }
     );
   }
@@ -103,7 +103,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating safe zone:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update safe zone' },
+      { success: false, error: 'فشل في تحديث المنطقة الآمنة' },
       { status: 500 }
     );
   }
@@ -128,7 +128,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting safe zone:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete safe zone' },
+      { success: false, error: 'فشل في حذف المنطقة الآمنة' },
       { status: 500 }
     );
   }

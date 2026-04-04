@@ -39,6 +39,7 @@ import {
   Clock,
   RefreshCw,
   Loader2,
+  BarChart3,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
@@ -495,6 +496,22 @@ export default function SettingsPage() {
             description="الأسئلة الشائعة والدعم"
             onClick={() => toast.info("قريباً")}
           />
+
+          <Link
+            href="/compare"
+            className="flex items-center justify-between p-4 hover:bg-muted rounded-xl transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <div className="font-medium">لماذا طمنّي؟</div>
+                <div className="text-sm text-muted-foreground">مقارنة مع التطبيقات الأخرى</div>
+              </div>
+            </div>
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          </Link>
           
           <SettingsItem
             icon={<Info className="w-5 h-5" />}

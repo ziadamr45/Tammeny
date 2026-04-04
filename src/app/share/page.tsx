@@ -99,9 +99,9 @@ export default function SharePage() {
           try {
             const res = await fetch('/api/user/location');
             const data = await res.json();
-            if (data.success && data.lastLocation) {
-              setLocation({ lat: data.lastLocation.lat, lng: data.lastLocation.lng });
-              lastLocationRef.current = { lat: data.lastLocation.lat, lng: data.lastLocation.lng };
+            if (data.success && data.location) {
+              setLocation({ lat: data.location.lat, lng: data.location.lng });
+              lastLocationRef.current = { lat: data.location.lat, lng: data.location.lng };
             } else {
               setLocation(null);
               lastLocationRef.current = null;

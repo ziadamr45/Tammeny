@@ -117,13 +117,13 @@ export default function SOSPage() {
             try {
               const response = await fetch('/api/user/location');
               const data = await response.json();
-              if (data.success && data.lastLocation) {
+              if (data.success && data.location) {
                 setLocation({
-                  lat: data.lastLocation.lat,
-                  lng: data.lastLocation.lng,
+                  lat: data.location.lat,
+                  lng: data.location.lng,
                   name: "آخر موقع معروف",
                   isLastKnown: true,
-                  timestamp: new Date(data.lastLocation.timestamp),
+                  timestamp: new Date(data.location.timestamp),
                 });
               } else {
                 setLocation(null);

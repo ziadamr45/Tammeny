@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 // GET - Get current user profile
@@ -142,5 +142,21 @@ export async function PUT(request: NextRequest) {
       { success: false, error: 'فشل في حفظ التغييرات' },
       { status: 500 }
     );
+  }
+}
+
+// DELETE - Delete user account
+export async function DELETE() {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'غير مسجل الدخول' }, { status: 401 });
+    }
+    // Cascade deletes handle related records
+    await db.user.delete({ where: { id: user.userId } });
+    return NextResponse.json({ success: true, message: 'تم حذف الحساب بنجاح' });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    return NextResponse.json({ success: false, error: 'حدث خطأ أثناء حذف الحساب' }, { status: 500 });
   }
 }

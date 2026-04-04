@@ -34,7 +34,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching emergency contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch emergency contact' },
+      { success: false, error: 'فشل في الحصول على جهة الاتصال' },
       { status: 500 }
     );
   }
@@ -88,7 +88,7 @@ export async function PUT(
   } catch (error) {
     console.error('Error updating emergency contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update emergency contact' },
+      { success: false, error: 'فشل في تحديث جهة الاتصال' },
       { status: 500 }
     );
   }
@@ -113,7 +113,7 @@ export async function DELETE(
   } catch (error) {
     console.error('Error deleting emergency contact:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete emergency contact' },
+      { success: false, error: 'فشل في حذف جهة الاتصال' },
       { status: 500 }
     );
   }

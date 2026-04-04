@@ -103,6 +103,30 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length > 0) {
+      const newOtp = [...otp];
+      pasted.split('').forEach((char, i) => {
+        if (i < 6) newOtp[i] = char;
+      });
+      setOtp(newOtp);
+      // Focus last filled input
+      const lastIndex = Math.min(pasted.length - 1, 5);
+      document.getElementById(`otp-${lastIndex}`)?.focus();
+    }
+  };
+
+  const getPasswordStrength = (password: string) => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return score;
+  };
+
   const handleOtpSubmit = async () => {
     const otpCode = otp.join("");
     if (otpCode.length !== 6) {
@@ -335,6 +359,7 @@ export default function ForgotPasswordPage() {
                     value={digit}
                     onChange={(e) => handleOtpChange(index, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                    onPaste={index === 0 ? handleOtpPaste : undefined}
                     className="w-12 h-14 text-center text-xl font-bold bg-secondary border-0 rounded-xl focus:ring-2 focus:ring-primary"
                   />
                 ))}
@@ -434,30 +459,28 @@ export default function ForgotPasswordPage() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">قوة كلمة المرور</span>
-                  <span
-                    className={cn(
-                      newPassword.length >= 8
-                        ? "text-green-600"
-                        : newPassword.length >= 4
-                        ? "text-yellow-600"
-                        : "text-red-600"
-                    )}
-                  >
-                    {newPassword.length >= 8 ? "قوية" : newPassword.length >= 4 ? "متوسطة" : "ضعيفة"}
-                  </span>
+                  {newPassword.length > 0 && (
+                    <span className={getPasswordStrength(newPassword) >= 3 ? "text-green-600" : getPasswordStrength(newPassword) === 2 ? "text-yellow-600" : "text-red-600"}>
+                      {getPasswordStrength(newPassword) >= 4 ? 'قوية جداً' : getPasswordStrength(newPassword) === 3 ? 'قوية' : getPasswordStrength(newPassword) === 2 ? 'متوسطة' : 'ضعيفة'}
+                    </span>
+                  )}
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full transition-all duration-300",
-                      newPassword.length >= 8
-                        ? "bg-green-500 w-full"
-                        : newPassword.length >= 4
-                        ? "bg-yellow-500 w-1/2"
-                        : "bg-red-500 w-1/4"
-                    )}
-                  />
+                  <div className={`h-full transition-all duration-300 rounded-full ${getPasswordStrength(newPassword) >= 4 ? 'bg-green-500 w-full' : getPasswordStrength(newPassword) === 3 ? 'bg-blue-500 w-3/4' : getPasswordStrength(newPassword) === 2 ? 'bg-yellow-500 w-1/2' : 'bg-red-500 w-1/4'}`} />
                 </div>
+                {newPassword.length > 0 && (
+                  <ul className="text-xs text-muted-foreground space-y-1 mt-1">
+                    <li className={newPassword.length >= 8 ? "text-green-600" : ""}>
+                      {newPassword.length >= 8 ? "✓" : "○"} 8 أحرف على الأقل
+                    </li>
+                    <li className={/[A-Z]/.test(newPassword) ? "text-green-600" : ""}>
+                      {/[A-Z]/.test(newPassword) ? "✓" : "○"} حرف كبير واحد على الأقل
+                    </li>
+                    <li className={/[0-9]/.test(newPassword) ? "text-green-600" : ""}>
+                      {/[0-9]/.test(newPassword) ? "✓" : "○"} رقم واحد على الأقل
+                    </li>
+                  </ul>
+                )}
               </div>
 
               <Button

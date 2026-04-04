@@ -145,9 +145,20 @@ export default function NotificationsPage() {
     toast.success("تم مسح جميع الإشعارات");
   };
 
-  const handleSettingChange = (key: keyof typeof settings, value: boolean) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-    toast.success(value ? "تم التفعيل" : "تم الإيقاف");
+  const handleSettingChange = async (key: keyof typeof settings, value: boolean) => {
+    setSettings((prev) => ({ ...prev, [key]: value })); // Optimistic update
+    try {
+      await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      });
+      toast.success(value ? "تم التفعيل" : "تم الإيقاف");
+    } catch {
+      // Revert on failure
+      setSettings((prev) => ({ ...prev, [key]: !value }));
+      toast.error("فشل في حفظ الإعداد");
+    }
   };
 
   // Get notification icon and color based on type

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hash } from 'bcrypt';
+import { hashPassword } from '@/lib/auth';
 
 // POST - Reset password with token
 export async function POST(request: NextRequest) {
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash new password
-    const hashedPassword = await hash(newPassword, 12);
+    const hashedPassword = await hashPassword(newPassword);
 
     // Update password and clear reset fields
     await db.user.update({
