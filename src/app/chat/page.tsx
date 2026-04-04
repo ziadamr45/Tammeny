@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,14 @@ import {
   Archive,
   Loader2,
   MessageCircle,
+  WifiOff,
+  Wifi,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import * as Ably from 'ably';
 
 interface Conversation {
   id: string;
@@ -80,6 +83,10 @@ export default function ChatPage() {
   const audioChunksRef = useRef<Blob[]>([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ably real-time refs and state
+  const ablyRef = useRef<Ably.Realtime | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -93,27 +100,116 @@ export default function ChatPage() {
   }, [authLoading, isAuthenticated, router]);
 
   // Fetch conversations
-  useEffect(() => {
+  const fetchConversations = useCallback(async () => {
     if (!isAuthenticated) return;
+    
+    try {
+      setLoading(true);
+      const response = await fetch('/api/messages');
+      const data = await response.json();
+      
+      if (data.success) {
+        setConversations(data.conversations);
+      }
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated]);
 
-    const fetchConversations = async () => {
+  // Initialize Ably for real-time communication
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
+
+    const initAbly = async () => {
       try {
-        setLoading(true);
-        const response = await fetch('/api/messages');
-        const data = await response.json();
-        
-        if (data.success) {
-          setConversations(data.conversations);
+        // Get Ably token
+        const tokenRes = await fetch('/api/ably/token');
+        const tokenData = await tokenRes.json();
+
+        if (!tokenData.success || !tokenData.token) {
+          console.error('Failed to get Ably token:', tokenData.error);
+          return;
         }
+
+        // Initialize Ably client with token
+        const ably = new Ably.Realtime({ 
+          token: tokenData.token,
+          clientId: tokenData.clientId || user.id,
+        });
+        ablyRef.current = ably;
+
+        // Handle connection state changes
+        ably.connection.on('connected', () => {
+          console.log('Ably connected');
+          setIsConnected(true);
+        });
+
+        ably.connection.on('failed', (err) => {
+          console.error('Ably connection failed:', err);
+          setIsConnected(false);
+          toast.error('فشل الاتصال بالخدمة الآنية');
+        });
+
+        ably.connection.on('disconnected', () => {
+          console.log('Ably disconnected');
+          setIsConnected(false);
+        });
+
+        // Subscribe to user's personal notification channel
+        const userChannel = ably.channels.get(`user:${user.id}:notifications`);
+        
+        userChannel.subscribe('new_message', (msg) => {
+          console.log('New message notification:', msg.data);
+          // Refresh conversations list when new message arrives
+          fetchConversations();
+          
+          // If we're in a chat view and the message is for current session, add it
+          if (selectedChat && msg.data?.sessionId === selectedChat.sessionId) {
+            const newMsg = {
+              id: msg.data.id || Date.now().toString(),
+              sender: msg.data.senderId === user.id ? 'me' : 'other',
+              text: msg.data.content,
+              time: new Date(msg.data.timestamp || Date.now()).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+              status: 'received',
+              type: msg.data.type,
+            };
+            setMessages(prev => [...prev, newMsg]);
+          }
+        });
+
+        // Subscribe to typing indicators
+        userChannel.subscribe('typing', (msg) => {
+          if (selectedChat && msg.data?.sessionId === selectedChat.sessionId && msg.data?.userId !== user.id) {
+            setIsTyping(true);
+            // Clear typing indicator after 3 seconds
+            setTimeout(() => setIsTyping(false), 3000);
+          }
+        });
+
       } catch (error) {
-        console.error('Error fetching conversations:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error initializing Ably:', error);
+        toast.error('حدث خطأ في الاتصال الآني');
       }
     };
 
+    initAbly();
+
+    // Cleanup on unmount
+    return () => {
+      if (ablyRef.current) {
+        ablyRef.current.connection.off();
+        ablyRef.current.close();
+        ablyRef.current = null;
+      }
+    };
+  }, [isAuthenticated, user?.id, fetchConversations, selectedChat]);
+
+  // Fetch conversations on mount
+  useEffect(() => {
     fetchConversations();
-  }, [isAuthenticated]);
+  }, [fetchConversations]);
 
   useEffect(() => {
     scrollToBottom();
@@ -148,6 +244,9 @@ export default function ChatPage() {
         setMessages(prev => [...prev, newMessage]);
         setMessage("");
         scrollToBottom();
+        
+        // Refresh conversations to update last message
+        fetchConversations();
       } else {
         toast.error(data.error || "فشل في إرسال الرسالة");
       }
@@ -349,6 +448,7 @@ export default function ChatPage() {
           conversations={conversations}
           loading={loading}
           onSelectChat={handleSelectChat}
+          isConnected={isConnected}
         />
       ) : (
         <ChatView
@@ -422,19 +522,31 @@ function ChatList({
   conversations,
   loading,
   onSelectChat,
+  isConnected,
 }: {
   conversations: Conversation[];
   loading: boolean;
   onSelectChat: (chat: Conversation) => void;
+  isConnected: boolean;
 }) {
   return (
     <div className="pt-16 px-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-bold">الرسائل</h1>
-        <Badge variant="secondary" className="bg-primary/10 text-primary">
-          {conversations.reduce((acc, c) => acc + c.unread, 0)} غير مقروءة
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* Connection status indicator */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {isConnected ? (
+              <Wifi className="w-4 h-4 text-green-500" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-red-500" />
+            )}
+          </div>
+          <Badge variant="secondary" className="bg-primary/10 text-primary">
+            {conversations.reduce((acc, c) => acc + c.unread, 0)} غير مقروءة
+          </Badge>
+        </div>
       </div>
 
       {/* Search */}

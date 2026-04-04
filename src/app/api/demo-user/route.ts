@@ -8,6 +8,18 @@ export const DEMO_USER_ID = 'demo-user-001';
 // GET - Create demo user if not exists and return user ID
 export async function GET() {
   try {
+    // التحقق من البيئة وإعدادات الوضع التجريبي
+    // يسمح بالوصول فقط في بيئة التطوير أو عند تفعيل الوضع التجريبي
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const demoEnabled = process.env.ENABLE_DEMO_USER === 'true';
+
+    if (!isDevelopment && !demoEnabled) {
+      return NextResponse.json(
+        { success: false, error: 'Demo mode is disabled' },
+        { status: 403 }
+      );
+    }
+
     // Check if demo user exists
     let user = await db.user.findUnique({
       where: { id: DEMO_USER_ID },

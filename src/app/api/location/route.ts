@@ -25,9 +25,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get session
+    // Get session with user settings (for stealthMode check)
     const session = await db.session.findUnique({
       where: { id: sessionId },
+      include: {
+        creator: {
+          select: {
+            stealthMode: true,
+          },
+        },
+      },
     });
 
     if (!session || session.status !== "active") {
@@ -36,6 +43,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Check stealthMode - if enabled, don't save location points
+    const isStealthMode = session.creator.stealthMode;
 
     // Calculate distance traveled
     const lastLat = session.currentLat || session.startLat;
@@ -54,16 +64,18 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Save location point
-    await db.locationPoint.create({
-      data: {
-        sessionId,
-        lat,
-        lng,
-        speed: speed || null,
-        accuracy: accuracy || null,
-      },
-    });
+    // Save location point ONLY if stealthMode is disabled
+    if (!isStealthMode) {
+      await db.locationPoint.create({
+        data: {
+          sessionId,
+          lat,
+          lng,
+          speed: speed || null,
+          accuracy: accuracy || null,
+        },
+      });
+    }
 
     // Calculate ETA if destination exists
     let eta: number | null = null;

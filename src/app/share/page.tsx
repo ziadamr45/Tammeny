@@ -72,6 +72,7 @@ export default function SharePage() {
   const [viewerCount, setViewerCount] = useState(0);
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [userSettings, setUserSettings] = useState<{ stealthMode: boolean; batterySaver: boolean; notificationsEnabled: boolean }>({ stealthMode: false, batterySaver: false, notificationsEnabled: true });
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -79,6 +80,29 @@ export default function SharePage() {
       router.push("/login");
     }
   }, [authLoading, isAuthenticated, router]);
+
+  // Fetch user settings
+  useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/user/settings');
+        const data = await res.json();
+        if (data.success && data.settings) {
+          setUserSettings({
+            stealthMode: data.settings.stealthMode || false,
+            batterySaver: data.settings.batterySaver || false,
+            notificationsEnabled: data.settings.notificationsEnabled ?? true,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
+    fetchSettings();
+  }, [authLoading, isAuthenticated]);
 
   // Get current location
   useEffect(() => {
@@ -117,10 +141,13 @@ export default function SharePage() {
   }, []);
 
   // Start location updates for active session
-  const startLocationUpdates = useCallback((encryptedId: string) => {
+  const startLocationUpdates = useCallback((encryptedId: string, batterySaver: boolean) => {
     if (locationIntervalRef.current) {
       clearInterval(locationIntervalRef.current);
     }
+
+    // Use 30s interval if batterySaver is enabled, otherwise 5s
+    const updateInterval = batterySaver ? 30000 : 5000;
 
     const sendLocation = () => {
       navigator.geolocation.getCurrentPosition(
@@ -134,7 +161,7 @@ export default function SharePage() {
           setLocation(newLocation);
           lastLocationRef.current = newLocation;
 
-          // Send to server
+          // Send to server (stealthMode is checked server-side)
           fetch('/api/location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -159,8 +186,8 @@ export default function SharePage() {
     // Send immediately
     sendLocation();
     
-    // Then send every 5 seconds
-    locationIntervalRef.current = setInterval(sendLocation, 5000);
+    // Then send based on batterySaver setting (5s or 30s)
+    locationIntervalRef.current = setInterval(sendLocation, updateInterval);
   }, []);
 
   // Stop location updates
@@ -269,8 +296,8 @@ export default function SharePage() {
       setIsSharingActive(true);
       setShowSuccessModal(true);
 
-      // Start location updates
-      startLocationUpdates(data.encryptedId);
+      // Start location updates (with batterySaver setting)
+      startLocationUpdates(data.encryptedId, userSettings.batterySaver);
 
       toast.success("تم إنشاء رابط المشاركة بنجاح!");
 

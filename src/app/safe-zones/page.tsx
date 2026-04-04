@@ -47,6 +47,10 @@ import {
   Shield,
   Loader2,
   Baby,
+  Radar,
+  Radio,
+  Pause,
+  Play,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { DynamicMap } from "@/components/tamenny/map-component";
@@ -96,6 +100,14 @@ export default function SafeZonesPage() {
   const [selectedZone, setSelectedZone] = useState<SafeZone | null>(null);
   const [showMapPreview, setShowMapPreview] = useState<string | null>(null);
 
+  // ========================================
+  // حالة مراقبة المناطق الآمنة
+  // ========================================
+  const [monitoringActive, setMonitoringActive] = useState(false);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [currentPosition, setCurrentPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [swSupported, setSwSupported] = useState(true);
+
   // New zone form state
   const [newZone, setNewZone] = useState<Partial<SafeZone>>({
     name: "",
@@ -109,6 +121,122 @@ export default function SafeZonesPage() {
     latitude: 0,
     longitude: 0,
   });
+
+  // ========================================
+  // التحقق من دعم Service Worker
+  // ========================================
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      setSwSupported(true);
+      // التحقق من حالة المراقبة المحفوظة
+      const savedMonitoring = localStorage.getItem('geofence_monitoring_active');
+      if (savedMonitoring === 'true') {
+        setMonitoringActive(true);
+      }
+    } else {
+      setSwSupported(false);
+    }
+  }, []);
+
+  // ========================================
+  // الاستماع لرسائل Service Worker
+  // ========================================
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'GET_LOCATION') {
+        // Service Worker يطلب الموقع
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              // إرسال الموقع للـ Service Worker
+              if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                  type: 'LOCATION_RESPONSE',
+                  coords: {
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                  },
+                });
+              }
+              setCurrentPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            },
+            () => {
+              // خطأ في الحصول على الموقع
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        }
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => navigator.serviceWorker.removeEventListener('message', handleMessage);
+  }, []);
+
+  // ========================================
+  // تفعيل/إيقاف مراقبة المناطق
+  // ========================================
+  const toggleMonitoring = useCallback(async () => {
+    if (!swSupported) {
+      toast.error('المتصفح لا يدعم هذه الميزة');
+      return;
+    }
+
+    // التحقق من وجود مناطق
+    if (zones.length === 0) {
+      toast.error('أضف منطقة آمنة واحدة على الأقل');
+      return;
+    }
+
+    setMonitoringLoading(true);
+
+    try {
+      // طلب إذن الموقع
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      if (permission.state === 'denied') {
+        toast.error('إذن الموقع مرفوض. الرجاء تفعيله من الإعدادات');
+        setMonitoringLoading(false);
+        return;
+      }
+
+      // الحصول على الموقع الحالي
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+        });
+      });
+
+      setCurrentPosition({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      });
+
+      // إرسال رسالة للـ Service Worker
+      const registration = await navigator.serviceWorker.ready;
+      
+      if (!monitoringActive) {
+        // تفعيل المراقبة
+        await registration.active?.postMessage({ type: 'START_GEOFENCE_MONITORING' });
+        setMonitoringActive(true);
+        localStorage.setItem('geofence_monitoring_active', 'true');
+        toast.success('تم تفعيل مراقبة المناطق الآمنة');
+      } else {
+        // إيقاف المراقبة
+        await registration.active?.postMessage({ type: 'STOP_GEOFENCE_MONITORING' });
+        setMonitoringActive(false);
+        localStorage.setItem('geofence_monitoring_active', 'false');
+        toast.success('تم إيقاف مراقبة المناطق الآمنة');
+      }
+    } catch (err) {
+      console.error('Error toggling monitoring:', err);
+      toast.error('فشل في تغيير حالة المراقبة');
+    } finally {
+      setMonitoringLoading(false);
+    }
+  }, [monitoringActive, swSupported, zones.length]);
 
   // Get user's GPS location for new zone
   const getUserLocationForZone = useCallback(() => {
@@ -332,6 +460,89 @@ export default function SafeZonesPage() {
               </Button>
             </div>
 
+            {/* ========================================
+                بطاقة حالة المراقبة
+            ======================================== */}
+            <Card className={cn(
+              "mb-4 p-4 border-2 transition-all",
+              monitoringActive 
+                ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700" 
+                : "bg-muted/50 border-border"
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "w-12 h-12 rounded-xl flex items-center justify-center",
+                    monitoringActive 
+                      ? "bg-green-200 dark:bg-green-800" 
+                      : "bg-muted"
+                  )}>
+                    {monitoringActive ? (
+                      <Radar className="w-6 h-6 text-green-600 dark:text-green-400 animate-pulse" />
+                    ) : (
+                      <Radio className="w-6 h-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className={cn(
+                      "font-medium",
+                      monitoringActive ? "text-green-700 dark:text-green-400" : "text-foreground"
+                    )}>
+                      {monitoringActive ? "المراقبة نشطة" : "المراقبة متوقفة"}
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      {monitoringActive 
+                        ? "يتم تتبع موقعك وإرسال الإشعارات" 
+                        : "فعّل المراقبة للحصول على الإشعارات"
+                      }
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={toggleMonitoring}
+                  disabled={monitoringLoading || !swSupported || zones.length === 0}
+                  variant={monitoringActive ? "destructive" : "default"}
+                  className={cn(
+                    "rounded-xl",
+                    !monitoringActive && "bg-primary"
+                  )}
+                >
+                  {monitoringLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : monitoringActive ? (
+                    <>
+                      <Pause className="w-4 h-4 ml-2" />
+                      إيقاف
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 ml-2" />
+                      تفعيل
+                    </>
+                  )}
+                </Button>
+              </div>
+              
+              {/* حالة الموقع الحالي */}
+              {monitoringActive && currentPosition && (
+                <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
+                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <Navigation className="w-4 h-4" />
+                    <span>
+                      الموقع الحالي: {currentPosition.lat.toFixed(4)}, {currentPosition.lng.toFixed(4)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* رسالة عند عدم وجود مناطق */}
+              {zones.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  أضف منطقة آمنة واحدة على الأقل لتفعيل المراقبة
+                </p>
+              )}
+            </Card>
+
             {/* Info Banner */}
             <Card className="mb-4 p-4 bg-gradient-to-l from-primary/10 to-teal-500/5 border-primary/20">
               <div className="flex items-center gap-3">
@@ -479,6 +690,10 @@ export default function SafeZonesPage() {
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
                     <span>المناطق الخضراء للمناطق الآمنة، الصفراء للتنبيه</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2" />
+                    <span>فعّل المراقبة للحصول على إشعارات الدخول والخروج</span>
                   </li>
                 </ul>
               </Card>

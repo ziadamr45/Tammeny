@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { sendBulkSMSAlerts } from '@/lib/sms';
 
 // POST - Activate SOS emergency alert
 export async function POST(request: NextRequest) {
@@ -37,6 +38,69 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Get user info for SMS
+    const userInfo = await db.user.findUnique({
+      where: { id: user.userId },
+      select: { name: true },
+    });
+
+    // إعداد بيانات الموقع للمشاركة
+    const locationData = latitude && longitude ? {
+      lat: latitude,
+      lng: longitude,
+      name: locationName || 'غير محدد',
+    } : null;
+
+    // إنشاء رابط المشاركة
+    const shareLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/track/${sosSession.id}`;
+
+    // إرسال SMS لجهات الطوارئ
+    let smsResults = {
+      sentCount: 0,
+      failedCount: 0,
+      errors: [] as Array<{ contact: string; error: string }>,
+    };
+
+    if (emergencyContacts.length > 0) {
+      // تحضير قائمة جهات الاتصال للإرسال
+      const contactsForSMS = emergencyContacts
+        .filter(contact => contact.phone) // فقط من لديهم رقم هاتف
+        .map(contact => ({
+          name: contact.name,
+          phone: contact.phone!,
+        }));
+
+      if (contactsForSMS.length > 0) {
+        console.log(`[SOS] 📤 إرسال تنبيه طوارئ إلى ${contactsForSMS.length} جهة اتصال`);
+
+        // إرسال الرسائل
+        smsResults = await sendBulkSMSAlerts(
+          contactsForSMS,
+          userInfo?.name || 'مستخدم طمنّي',
+          locationData,
+          shareLink,
+          'sos'
+        );
+
+        console.log(`[SOS] 📊 نتيجة الإرسال: ${smsResults.sentCount} نجح، ${smsResults.failedCount} فشل`);
+      }
+    }
+
+    // إنشاء إشعار للمستخدم
+    await db.notification.create({
+      data: {
+        userId: user.userId,
+        type: 'sos',
+        title: 'تم تفعيل تنبيه الطوارئ',
+        message: `تم إرسال تنبيه الطوارئ إلى ${smsResults.sentCount} جهة اتصال`,
+        data: JSON.stringify({
+          sosId: sosSession.id,
+          smsSent: smsResults.sentCount,
+          smsFailed: smsResults.failedCount,
+        }),
+      },
+    });
+
     return NextResponse.json({
       success: true,
       sosSession: {
@@ -50,7 +114,13 @@ export async function POST(request: NextRequest) {
         phone: c.phone,
       })),
       notifiedCount: emergencyContacts.length,
-      message: 'تم إرسال تنبيه الطوارئ بنجاح',
+      smsSent: smsResults.sentCount,
+      smsFailed: smsResults.failedCount,
+      smsErrors: smsResults.errors,
+      shareLink,
+      message: smsResults.sentCount > 0 
+        ? `تم إرسال تنبيه الطوارئ بنجاح إلى ${smsResults.sentCount} جهة اتصال`
+        : 'تم تفعيل تنبيه الطوارئ (لم يتم إرسال رسائل SMS)',
     });
   } catch (error) {
     console.error('Error activating SOS:', error);

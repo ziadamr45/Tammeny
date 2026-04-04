@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
 
     // Build where clause
     const where: {
-      creatorId: string;
+      userId: string;
       status?: string;
-      startedAt?: { gte?: Date };
+      startTime?: { gte?: Date };
     } = {
-      creatorId: user.userId,
+      userId: user.userId,
     };
 
     // Status filter
@@ -36,61 +36,54 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     if (timeFilter === 'week') {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      where.startedAt = { gte: weekAgo };
+      where.startTime = { gte: weekAgo };
     } else if (timeFilter === 'month') {
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      where.startedAt = { gte: monthAgo };
+      where.startTime = { gte: monthAgo };
     }
 
-    // Get sessions/trips
-    const trips = await db.session.findMany({
+    // Get trips from TripHistory
+    const trips = await db.tripHistory.findMany({
       where,
-      include: {
-        allowedUsers: true,
-        locations: {
-          orderBy: { timestamp: 'asc' },
-          take: 1
-        }
+      select: {
+        id: true,
+        startLocation: true,
+        endLocation: true,
+        startTime: true,
+        endTime: true,
+        distance: true,
+        duration: true,
+        status: true,
+        transportMode: true,
+        locationType: true,
+        sharedWith: true,
       },
-      orderBy: { startedAt: 'desc' }
+      orderBy: { startTime: 'desc' }
     });
-
-    // Get user info for allowed users
-    const allowedUserIds = trips.flatMap(t => 
-      t.allowedUsers.filter(a => a.userId).map(a => a.userId as string)
-    );
-    const users = await db.user.findMany({
-      where: { id: { in: allowedUserIds } },
-      select: { id: true, name: true }
-    });
-    const userMap = new Map(users.map(u => [u.id, u]));
 
     // Format trips for response
     const formattedTrips = trips.map(trip => ({
       id: trip.id,
-      destination: trip.destName || 'وجهة غير محددة',
-      origin: trip.locations[0] ? 'موقع البداية' : 'غير محدد',
-      startTime: trip.startedAt,
-      endTime: trip.completedAt,
-      distance: trip.totalDistance,
-      duration: Math.round(trip.totalDuration / 60), // Convert to minutes
+      destination: trip.endLocation || 'وجهة غير محددة',
+      origin: trip.startLocation || 'غير محدد',
+      startTime: trip.startTime,
+      endTime: trip.endTime,
+      distance: trip.distance,
+      duration: trip.duration,
       status: trip.status,
-      sharedWith: trip.allowedUsers
-        .filter(au => au.userId)
-        .map(au => userMap.get(au.userId!)?.name)
-        .filter((name): name is string => !!name),
-      transportMode: 'car', // Default
-      locationType: 'other', // Default
+      transportMode: trip.transportMode,
+      locationType: trip.locationType,
+      sharedWith: trip.sharedWith ? JSON.parse(trip.sharedWith) : [],
     }));
 
     // Calculate stats
     const completedTrips = trips.filter(t => t.status === 'completed');
     const stats = {
-      totalDistance: completedTrips.reduce((acc, t) => acc + t.totalDistance, 0),
+      totalDistance: completedTrips.reduce((acc, t) => acc + t.distance, 0),
       totalTrips: completedTrips.length,
-      totalTime: Math.round(completedTrips.reduce((acc, t) => acc + t.totalDuration, 0) / 60), // Hours
+      totalTime: Math.round(completedTrips.reduce((acc, t) => acc + t.duration, 0)), // Already in minutes
       avgSpeed: completedTrips.length > 0
-        ? completedTrips.reduce((acc, t) => acc + (t.totalDistance / Math.max(t.totalDuration / 3600, 1)), 0) / completedTrips.length
+        ? completedTrips.reduce((acc, t) => acc + (t.distance / Math.max(t.duration / 60, 1)), 0) / completedTrips.length
         : 0,
     };
 

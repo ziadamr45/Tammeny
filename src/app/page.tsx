@@ -90,6 +90,7 @@ export default function HomePage() {
   const [quickStats, setQuickStats] = useState({ trips: 0, distance: 0, contacts: 0 });
   const [recentTrips, setRecentTrips] = useState<Array<{ id: string; destination: string; startTime: string; distance: number; status: string }>>([]);
   const [safeZones, setSafeZones] = useState<Array<{ id: string; name: string; type: string; latitude: number; longitude: number }>>([]);
+  const [userSettings, setUserSettings] = useState<{ stealthMode: boolean; batterySaver: boolean; notificationsEnabled: boolean }>({ stealthMode: false, batterySaver: false, notificationsEnabled: true });
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
@@ -115,15 +116,17 @@ export default function HomePage() {
 
     const fetchData = async () => {
       try {
-        const [tripsRes, contactsRes, safeZonesRes] = await Promise.all([
+        const [tripsRes, contactsRes, safeZonesRes, settingsRes] = await Promise.all([
           fetch('/api/trips?time=week'),
           fetch('/api/contacts'),
           fetch('/api/safe-zones'),
+          fetch('/api/user/settings'),
         ]);
-        const [tripsData, contactsData, safeZonesData] = await Promise.all([
+        const [tripsData, contactsData, safeZonesData, settingsData] = await Promise.all([
           tripsRes.json(),
           contactsRes.json(),
           safeZonesRes.json(),
+          settingsRes.json(),
         ]);
 
         if (tripsData.success) {
@@ -142,6 +145,13 @@ export default function HomePage() {
         }
         if (safeZonesData.success) {
           setSafeZones(safeZonesData.zones || []);
+        }
+        if (settingsData.success && settingsData.settings) {
+          setUserSettings({
+            stealthMode: settingsData.settings.stealthMode || false,
+            batterySaver: settingsData.settings.batterySaver || false,
+            notificationsEnabled: settingsData.settings.notificationsEnabled ?? true,
+          });
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -351,10 +361,13 @@ export default function HomePage() {
   };
 
   // Start location updates for active session
-  const startLocationUpdates = useCallback((encryptedId: string) => {
+  const startLocationUpdates = useCallback((encryptedId: string, batterySaver: boolean) => {
     if (locationIntervalRef.current) {
       clearInterval(locationIntervalRef.current);
     }
+
+    // Use 30s interval if batterySaver is enabled, otherwise 5s
+    const updateInterval = batterySaver ? 30000 : 5000;
 
     const sendLocation = () => {
       navigator.geolocation.getCurrentPosition(
@@ -370,7 +383,7 @@ export default function HomePage() {
             name: "موقعك الحالي",
           });
 
-          // Send to server
+          // Send to server (stealthMode is checked server-side)
           fetch('/api/location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -393,7 +406,7 @@ export default function HomePage() {
     };
 
     sendLocation();
-    locationIntervalRef.current = setInterval(sendLocation, 5000);
+    locationIntervalRef.current = setInterval(sendLocation, updateInterval);
   }, []);
 
   // Stop location updates
@@ -440,8 +453,8 @@ export default function HomePage() {
       setStatus("sharing");
       setEta(selectedDuration === -1 ? 30 : selectedDuration);
 
-      // Start location updates
-      startLocationUpdates(data.encryptedId);
+      // Start location updates (with batterySaver setting)
+      startLocationUpdates(data.encryptedId, userSettings.batterySaver);
       
       // If destination is set, show route
       if (destination) {
@@ -587,7 +600,7 @@ ${data.shareUrl}
       setSelectedDuration(duration);
       setStatus("sharing");
       setEta(duration);
-      startLocationUpdates(data.encryptedId);
+      startLocationUpdates(data.encryptedId, userSettings.batterySaver);
       toast.success(`بدأت المشاركة لمدة ${formatArabicDuration(duration, "minutes")}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "فشل بدء المشاركة");
@@ -625,8 +638,8 @@ ${data.shareUrl}
       setShareLink(data.shareUrl);
       setStatus("sharing");
 
-      // Start location updates
-      startLocationUpdates(data.encryptedId);
+      // Start location updates (with batterySaver setting)
+      startLocationUpdates(data.encryptedId, userSettings.batterySaver);
 
       const message = `أنا مشارك موقعي معاك على طمنّي 📍
 موقعي الحالي: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}
@@ -671,15 +684,39 @@ ${data.shareUrl}
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
       {/* Auth Loading */}
       {!authChecked && (
-        <div className="fixed inset-0 bg-background flex items-center justify-center z-[100]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="relative">
-              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <MapPin className="w-6 h-6 text-primary animate-pulse" />
-              </div>
+        <div className="fixed inset-0 bg-background z-[100]">
+          {/* Map skeleton */}
+          <div className="h-[45vh] bg-muted relative">
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-20 h-20 bg-muted-foreground/10 rounded-2xl animate-pulse" />
             </div>
-            <p className="text-muted-foreground animate-pulse">جاري التحقق...</p>
+          </div>
+
+          {/* Content skeleton */}
+          <div className="px-4 py-6 space-y-4">
+            {/* Status bar skeleton */}
+            <div className="h-12 bg-muted rounded-xl animate-pulse" />
+
+            {/* Destination card skeleton */}
+            <div className="h-20 bg-muted rounded-2xl animate-pulse opacity-90" />
+
+            {/* Share button skeleton */}
+            <div className="h-20 bg-muted rounded-2xl animate-pulse opacity-80" />
+
+            {/* Quick actions skeleton */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-24 bg-muted rounded-xl animate-pulse opacity-70" />
+              <div className="h-24 bg-muted rounded-xl animate-pulse opacity-70" style={{ animationDelay: '100ms' }} />
+            </div>
+
+            {/* WhatsApp button skeleton */}
+            <div className="h-16 bg-muted rounded-xl animate-pulse opacity-60" style={{ animationDelay: '150ms' }} />
+
+            {/* Additional skeleton elements */}
+            <div className="space-y-3">
+              <div className="h-16 bg-muted rounded-xl animate-pulse opacity-50" style={{ animationDelay: '200ms' }} />
+              <div className="h-16 bg-muted rounded-xl animate-pulse opacity-40" style={{ animationDelay: '250ms' }} />
+            </div>
           </div>
         </div>
       )}

@@ -520,10 +520,45 @@ export default function AchievementsPage() {
   // Auth Loading
   if (authLoading || loadingAchievements) {
     return (
-      <main className="min-h-screen bg-background pb-20 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-muted-foreground">جاري التحميل...</p>
+      <main className="min-h-screen bg-background pb-20">
+        <Header />
+        <div className="pt-16 px-4 space-y-6">
+          {/* Header skeleton */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="h-7 w-48 bg-muted rounded-xl animate-pulse mb-2" />
+              <div className="h-4 w-32 bg-muted rounded-lg animate-pulse opacity-70" />
+            </div>
+            <div className="h-9 w-28 bg-muted rounded-xl animate-pulse opacity-50" />
+          </div>
+
+          {/* Safety Score Widget skeleton */}
+          <div className="h-24 bg-muted rounded-2xl animate-pulse" />
+
+          {/* Stats Overview skeleton */}
+          <div className="grid grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-3 bg-muted rounded-xl animate-pulse" style={{ animationDelay: `${i * 100}ms` }}>
+                <div className="w-10 h-10 mx-auto mb-2 rounded-xl bg-muted-foreground/10" />
+                <div className="h-6 w-8 mx-auto bg-muted-foreground/10 rounded-lg mb-1" />
+                <div className="h-3 w-12 mx-auto bg-muted-foreground/5 rounded" />
+              </div>
+            ))}
+          </div>
+
+          {/* Filter tabs skeleton */}
+          <div className="flex gap-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex-1 h-9 bg-muted rounded-lg animate-pulse opacity-50" />
+            ))}
+          </div>
+
+          {/* Achievements skeleton */}
+          <div className="grid grid-cols-1 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+            ))}
+          </div>
         </div>
       </main>
     );

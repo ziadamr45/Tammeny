@@ -99,6 +99,21 @@ export async function PUT(request: NextRequest) {
       updateData.phone = phone;
     }
     if (avatar !== undefined) {
+      // Validate avatar size (max 200KB for base64 string)
+      // Base64 is ~33% larger than binary, so 200KB base64 ≈ 150KB image
+      if (avatar && avatar.length > 200000) {
+        return NextResponse.json(
+          { success: false, error: 'حجم الصورة كبير جداً (الحد الأقصى 200KB)' },
+          { status: 400 }
+        );
+      }
+      // Validate base64 image format
+      if (avatar && !avatar.startsWith('data:image/')) {
+        return NextResponse.json(
+          { success: false, error: 'صيغة الصورة غير صالحة' },
+          { status: 400 }
+        );
+      }
       updateData.avatar = avatar;
     }
     if (gender !== undefined) {

@@ -553,3 +553,263 @@ ABLY_API_KEY="kEBzbg.JaMLeg:ZEU-a0_2x0GnLm4yl-Wqot80J1QFz9t0pAzKdCmNeew"
 JWT_SECRET="tamenny-jwt-secret-key-2024-secure"
 ENCRYPTION_KEY="tamenny-encryption-key-32-characters!"
 ```
+
+---
+
+## Phase 10: Chat Real-time with Ably Fix (Completed 2025-01-17)
+
+### Problem
+Chat page used Ably but real-time functionality was not working correctly. Messages were not being received in real-time.
+
+### Fix Applied
+
+#### 1. Updated Ably Token API ✅
+**File:** `/api/ably/token/route.ts`
+- Changed response format to return `token` directly (not `tokenRequest`)
+- Added `clientId` to response for client-side use
+- Simplified the API response for easier client consumption
+
+#### 2. Added Ably Client Initialization to Chat Page ✅
+**File:** `/app/chat/page.tsx`
+
+**Added imports:**
+- `useCallback` from React
+- `WifiOff`, `Wifi` icons from Lucide
+- `* as Ably from 'ably'`
+
+**Added state and refs:**
+- `ablyRef` - Reference to Ably Realtime instance
+- `isConnected` - Connection status indicator
+
+**Implemented real-time features:**
+- Initialize Ably client on user authentication
+- Subscribe to user's personal notification channel (`user:${userId}:notifications`)
+- Handle `new_message` events to:
+  - Refresh conversations list when new messages arrive
+  - Add messages to current chat view if viewing that session
+- Handle `typing` events to show typing indicators
+- Connection state management (connected, failed, disconnected)
+- Proper cleanup on component unmount
+
+**Added UI:**
+- Connection status indicator (WiFi icon) in chat list header
+- Green icon when connected, red when disconnected
+- Arabic error messages for connection failures
+
+### How It Works
+1. When user logs in, chat page fetches Ably token from `/api/ably/token`
+2. Ably client is initialized with the token
+3. Client subscribes to `user:${userId}:notifications` channel
+4. When someone sends a message:
+   - Server publishes to recipient's notification channel
+   - Chat page receives the `new_message` event
+   - Conversations list refreshes
+   - If viewing that chat, message appears instantly
+5. Connection status is shown in UI with WiFi icon
+
+### Error Handling
+- Failed token fetch → Console error, no crash
+- Failed connection → Toast notification in Arabic
+- Disconnected → UI indicator updates
+- Cleanup on unmount prevents memory leaks
+
+---
+
+## Commit
+- Message: "feat: implement real-time chat with Ably"
+- Files changed: 2 files (API + chat page)
+
+---
+
+## Phase 11: Stealth Mode & Battery Saver Fix (Completed 2025-01-17)
+
+### Problem
+Toggles for Stealth Mode and Battery Saver in Settings page were not affecting app behavior.
+
+### Solution Applied
+
+#### 1. Updated Location API for Stealth Mode ✅
+**File:** `/api/location/route.ts`
+
+**Changes:**
+- Modified POST handler to include user's `stealthMode` setting
+- When `stealthMode` is enabled, location points are NOT saved to the database
+- Session still receives current location for live tracking
+- This preserves privacy while maintaining functionality
+
+```typescript
+// Get session with user settings
+const session = await db.session.findUnique({
+  where: { id: sessionId },
+  include: {
+    creator: {
+      select: { stealthMode: true },
+    },
+  },
+});
+
+// Save location point ONLY if stealthMode is disabled
+if (!isStealthMode) {
+  await db.locationPoint.create({ ... });
+}
+```
+
+#### 2. Updated Main Page for Battery Saver ✅
+**File:** `/app/page.tsx`
+
+**Changes:**
+- Added `userSettings` state to store user preferences
+- Fetch settings from `/api/user/settings` on page load
+- Modified `startLocationUpdates` to accept `batterySaver` parameter
+- When `batterySaver` is enabled: location updates every 30 seconds
+- When `batterySaver` is disabled: location updates every 5 seconds
+
+```typescript
+const updateInterval = batterySaver ? 30000 : 5000;
+locationIntervalRef.current = setInterval(sendLocation, updateInterval);
+```
+
+#### 3. Updated Share Page for Battery Saver ✅
+**File:** `/app/share/page.tsx`
+
+**Changes:**
+- Added `userSettings` state
+- Fetch settings on authentication
+- Updated `startLocationUpdates` with same battery saver logic
+- All share flows respect user settings
+
+### Summary of Features
+
+| Feature | Behavior |
+|---------|----------|
+| **Stealth Mode** | Location points NOT saved to DB (privacy) |
+| **Battery Saver** | Location updates every 30s instead of 5s |
+| **Normal Mode** | Full history saved, 5s updates |
+
+### API Endpoints Used
+- `GET /api/user/settings` - Fetch user settings
+- `PUT /api/user/settings` - Update user settings (already existed)
+- `POST /api/location` - Now checks stealthMode before saving
+
+---
+
+## Commit
+- Message: "fix: implement Stealth Mode and Battery Saver functionality"
+- Files changed: 3 files (API + 2 pages)
+
+---
+
+## Phase 12: Session Cleanup & Register Validation (Completed 2025-01-17)
+
+### FIX #1: Session Expiry Cleanup ✅
+**Problem:** Sessions منتهية (expired) تبقى في الـ DB بدون تنظيف.
+
+**Solution:**
+- Created `/api/sessions/cleanup/route.ts` - Cron job endpoint
+- يُشغَّل من Vercel Cron أو GitHub Actions
+- يتحقق من `CRON_SECRET` للمصادقة
+- يحدّث الـ sessions المنتهية (`expiresAt < now`) إلى status: `expired`
+- يحذف location points القديمة (أكثر من 30 يوم)
+
+**Usage:**
+```bash
+curl -X GET "https://your-domain.com/api/sessions/cleanup" \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "expiredSessions": 5,
+  "deletedLocations": 120
+}
+```
+
+### FIX #2: Register Email & Password Validation ✅
+**Problem:** Register API كان يتحقق فقط من وجود الحقول (null check) بدون التحقق من صحة صيغة الـ email أو قوة كلمة المرور.
+
+**Solution in `/api/auth/register/route.ts`:**
+- Added Zod validation schema:
+  - `name`: min 2 chars, max 100 chars
+  - `email`: valid email format
+  - `password`: min 8 chars, must contain letters AND numbers
+  - `gender`: optional enum ("male" | "female")
+  - `phone`: optional string
+
+**Validation Rules:**
+- الاسم يجب أن يكون حرفين على الأقل
+- البريد الإلكتروني غير صحيح
+- كلمة المرور يجب أن تكون 8 أحرف على الأقل
+- يجب أن تحتوي كلمة المرور على حروف
+- يجب أن تحتوي كلمة المرور على أرقام
+
+---
+
+## API Endpoints Created in Phase 12
+- `GET /api/sessions/cleanup` - تنظيف sessions المنتهية والبيانات القديمة
+
+---
+
+## Files Changed
+- Created: `/api/sessions/cleanup/route.ts`
+- Updated: `/api/auth/register/route.ts` (added Zod validation)
+
+---
+
+## Phase 13: Arabic Numerals Consistency Fix (Completed 2025-01-17)
+
+### Problem
+بعض الأماكن في التطبيق تستخدم `toArabicNumerals()` وبعضها لا يُظهر الأرقام بالأرقام العربية للمستخدم.
+
+### Files Fixed
+
+#### 1. `/app/notifications/page.tsx` ✅
+**Changes:**
+- Added import for `toArabicNumerals` from `@/lib/arabic-numerals`
+- Updated `formatTimeAgo` function to use Arabic numerals:
+  - `منذ ${minutes} دقيقة` → `منذ ${toArabicNumerals(minutes)} دقيقة`
+  - `منذ ${hours} ساعة` → `منذ ${toArabicNumerals(hours)} ساعة`
+  - `منذ ${days} يوم` → `منذ ${toArabicNumerals(days)} يوم`
+- Updated unread count badge: `{unreadCount}` → `{toArabicNumerals(unreadCount)}`
+
+#### 2. `/app/groups/page.tsx` ✅
+**Changes:**
+- Added import for `toArabicNumerals` from `@/lib/arabic-numerals`
+- Updated header stats: `{totalGroups} مجموعات • {onlineMembers} مشارك` → Arabic numerals
+- Updated stats cards:
+  - `{totalGroups}` → `{toArabicNumerals(totalGroups)}`
+  - `{activeGroups}` → `{toArabicNumerals(activeGroups)}`
+  - `{totalMembers}` → `{toArabicNumerals(totalMembers)}`
+- Updated settings dialog: `{selectedGroup.members.length} أعضاء` → Arabic numerals
+- Updated GroupCard component:
+  - Member count overflow: `+{group.members.length - 5}` → Arabic numerals
+  - Online/participant counts
+  - Group stats grid
+
+#### 3. `/app/history/page.tsx` ✅
+**Status:** Already uses the functions correctly!
+- Uses `toArabicNumerals()` for stats display
+- Uses `formatArabicDistance()` for distance
+- Uses `formatArabicDuration()` for duration
+- Uses `formatArabicDate()` for dates
+- Uses `formatArabicTime()` for times
+
+### Utility Functions Available
+All functions are in `/lib/arabic-numerals.ts`:
+- `toArabicNumerals(value)` - Convert any number to Arabic numerals (٠-٩)
+- `formatArabicDistance(distance, unit)` - Format distance with "كم" or "م"
+- `formatArabicDuration(duration, unit)` - Format duration with "ساعة/دقيقة/ثانية"
+- `formatArabicDate(date)` - Format date in Arabic
+- `formatArabicTime(date)` - Format time in Arabic (٠٣:٣٠ م)
+- `formatArabicTimeFromSeconds(seconds)` - Convert seconds to readable time
+- `formatArabicTimeFromMinutes(minutes)` - Convert minutes to readable time
+
+### Lint Status
+✅ No errors - All code passes ESLint
+
+---
+
+## Commit
+- Message: "fix: apply Arabic numerals consistently across all user-facing numbers"
+- Files changed: 2 files (notifications + groups pages)

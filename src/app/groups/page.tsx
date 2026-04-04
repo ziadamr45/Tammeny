@@ -44,6 +44,7 @@ import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { toArabicNumerals } from "@/lib/arabic-numerals";
 
 // Types
 interface GroupMember {
@@ -359,7 +360,7 @@ export default function GroupsPage() {
               <div>
                 <h1 className="text-xl font-bold">المجموعات</h1>
                 <p className="text-sm text-muted-foreground">
-                  {totalGroups} مجموعات • {onlineMembers} مشارك الآن
+                  {toArabicNumerals(totalGroups)} مجموعات • {toArabicNumerals(onlineMembers)} مشارك الآن
                 </p>
               </div>
               <Button
@@ -377,7 +378,7 @@ export default function GroupsPage() {
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-primary" />
                   <div>
-                    <div className="text-lg font-bold">{totalGroups}</div>
+                    <div className="text-lg font-bold">{toArabicNumerals(totalGroups)}</div>
                     <div className="text-xs text-muted-foreground">مجموعة</div>
                   </div>
                 </div>
@@ -386,7 +387,7 @@ export default function GroupsPage() {
                 <div className="flex items-center gap-2">
                   <Activity className="w-4 h-4 text-green-600" />
                   <div>
-                    <div className="text-lg font-bold text-green-600">{activeGroups}</div>
+                    <div className="text-lg font-bold text-green-600">{toArabicNumerals(activeGroups)}</div>
                     <div className="text-xs text-green-600/70">نشطة</div>
                   </div>
                 </div>
@@ -395,7 +396,7 @@ export default function GroupsPage() {
                 <div className="flex items-center gap-2">
                   <UserPlus className="w-4 h-4 text-purple-600" />
                   <div>
-                    <div className="text-lg font-bold text-purple-600">{totalMembers}</div>
+                    <div className="text-lg font-bold text-purple-600">{toArabicNumerals(totalMembers)}</div>
                     <div className="text-xs text-purple-600/70">أعضاء</div>
                   </div>
                 </div>
@@ -540,7 +541,7 @@ export default function GroupsPage() {
                 <Card className="p-3">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <TrendingUp className="w-4 h-4" />
-                    <span className="text-sm">{selectedGroup.members.length} أعضاء</span>
+                    <span className="text-sm">{toArabicNumerals(selectedGroup.members.length)} أعضاء</span>
                   </div>
                 </Card>
                 <Card className="p-3">
@@ -555,7 +556,7 @@ export default function GroupsPage() {
 
               {/* Members List */}
               <div className="space-y-2">
-                <Label>الأعضاء ({selectedGroup.members.length})</Label>
+                <Label>الأعضاء ({toArabicNumerals(selectedGroup.members.length)})</Label>
                 <div className="max-h-48 overflow-y-auto space-y-2">
                   {selectedGroup.members.map((member) => (
                     <div
@@ -705,16 +706,16 @@ function GroupCard({
           ))}
           {group.members.length > 5 && (
             <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium border-2 border-card">
-              +{group.members.length - 5}
+              +{toArabicNumerals(group.members.length - 5)}
             </div>
           )}
         </div>
         <div className="flex-1 text-sm">
           <div className="flex items-center gap-2">
-            <span className="text-green-600">{onlineCount} مشارك</span>
+            <span className="text-green-600">{toArabicNumerals(onlineCount)} مشارك</span>
           </div>
           <div className="text-xs text-muted-foreground">
-            {group.members.length} أعضاء
+            {toArabicNumerals(group.members.length)} أعضاء
           </div>
         </div>
       </div>
@@ -724,14 +725,14 @@ function GroupCard({
         <div className="text-center">
           <div className="flex items-center justify-center gap-1 text-primary">
             <TrendingUp className="w-3 h-3" />
-            <span className="font-bold">{group.members.length}</span>
+            <span className="font-bold">{toArabicNumerals(group.members.length)}</span>
           </div>
           <div className="text-xs text-muted-foreground">أعضاء</div>
         </div>
         <div className="text-center">
           <div className="flex items-center justify-center gap-1 text-green-600">
             <Activity className="w-3 h-3" />
-            <span className="font-bold">{onlineCount}</span>
+            <span className="font-bold">{toArabicNumerals(onlineCount)}</span>
           </div>
           <div className="text-xs text-muted-foreground">نشط</div>
         </div>

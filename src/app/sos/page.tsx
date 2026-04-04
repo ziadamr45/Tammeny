@@ -143,6 +143,30 @@ export default function SOSPage() {
     fetchLocation();
   }, []);
 
+  // Retry getting location
+  const retryLocation = useCallback(() => {
+    setLocationError(null);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            name: "موقعك الحالي",
+          });
+          setLocationError(null);
+          toast.success("تم تحديد موقعك بنجاح");
+        },
+        (error) => {
+          console.log('GPS retry error:', error.message);
+          setLocationError("تعذر تحديد موقعك. سيتم إرسال التنبيه بدون إحداثيات دقيقة.");
+          toast.error("تعذر تحديد موقعك");
+        },
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    }
+  }, []);
+
   // Get battery level
   useEffect(() => {
     const getBattery = async () => {
@@ -518,7 +542,7 @@ export default function SOSPage() {
         </div>
 
         {/* Location Display */}
-        {location && (
+        {location ? (
           <Card className="p-4 overflow-hidden">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -553,6 +577,30 @@ export default function SOSPage() {
               <span className="text-muted-foreground">
                 خط الطول: {toArabicNumerals(location.lng.toFixed(4))}°
               </span>
+            </div>
+          </Card>
+        ) : (
+          /* Empty State - No GPS */
+          <Card className="p-4 overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" />
+                <span className="font-medium">الموقع</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center h-48 bg-muted rounded-2xl gap-3">
+              <MapPin className="w-8 h-8 text-destructive animate-bounce" />
+              <p className="text-sm font-medium text-center">
+                لم يتم تحديد موقعك
+              </p>
+              <p className="text-xs text-muted-foreground text-center px-4">
+                سيتم إرسال تنبيه الطوارئ بدون إحداثيات دقيقة
+              </p>
+              <Button size="sm" onClick={retryLocation} variant="outline" className="mt-2">
+                <RefreshCw className="w-4 h-4 ml-2" />
+                حاول مجدداً
+              </Button>
             </div>
           </Card>
         )}

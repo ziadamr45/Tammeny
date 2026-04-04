@@ -32,6 +32,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { toArabicNumerals } from "@/lib/arabic-numerals";
 
 interface Notification {
   id: string;
@@ -109,9 +110,9 @@ export default function NotificationsPage() {
     const days = Math.floor(diff / 86400000);
 
     if (minutes < 1) return 'الآن';
-    if (minutes < 60) return `منذ ${minutes} دقيقة`;
-    if (hours < 24) return `منذ ${hours} ساعة`;
-    if (days < 7) return `منذ ${days} يوم`;
+    if (minutes < 60) return `منذ ${toArabicNumerals(minutes)} دقيقة`;
+    if (hours < 24) return `منذ ${toArabicNumerals(hours)} ساعة`;
+    if (days < 7) return `منذ ${toArabicNumerals(days)} يوم`;
     return new Date(date).toLocaleDateString('ar-EG');
   };
 
@@ -228,7 +229,7 @@ export default function NotificationsPage() {
                 الإشعارات
                 {unreadCount > 0 && (
                   <Badge className="h-5 w-5 p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground">
-                    {unreadCount}
+                    {toArabicNumerals(unreadCount)}
                   </Badge>
                 )}
             </TabsTrigger>

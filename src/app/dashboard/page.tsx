@@ -396,21 +396,35 @@ export default function DashboardPage() {
 
               <ChartContainer config={chartConfig} className="h-[200px]">
                 {timeRange === "week" ? (
-                  <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis
-                      dataKey="day"
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar
-                      dataKey="trips"
-                      fill="#0D7377"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
+                  weeklyData.every(d => d.trips === 0) ? (
+                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+                      <Route className="w-10 h-10 opacity-40" />
+                      <p className="text-sm">لا توجد رحلات هذا الأسبوع</p>
+                      <p className="text-xs opacity-60">ابدأ رحلتك الأولى من الصفحة الرئيسية</p>
+                    </div>
+                  ) : (
+                    <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fontSize: 10 }}
+                      />
+                      <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 10 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar
+                        dataKey="trips"
+                        fill="#0D7377"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  )
+                ) : monthlyData.every(d => d.trips === 0) ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
+                    <Route className="w-10 h-10 opacity-40" />
+                    <p className="text-sm">لا توجد رحلات هذا الشهر</p>
+                    <p className="text-xs opacity-60">ابدأ رحلتك الأولى من الصفحة الرئيسية</p>
+                  </div>
                 ) : (
                   <LineChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <XAxis

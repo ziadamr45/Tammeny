@@ -142,9 +142,17 @@ export default function ProfilePage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("يرجى اختيار ملف صورة صالح");
+      return;
+    }
 
     // Check file size (max 5MB raw)
     if (file.size > 5 * 1024 * 1024) {
@@ -152,34 +160,82 @@ export default function ProfilePage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      // Compress image using canvas
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_SIZE = 200;
-        let { width, height } = img;
-        if (width > height) {
-          if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-        } else {
-          if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-        }
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
-        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+    setIsUploadingAvatar(true);
 
+    try {
+      // Read and compress image
+      const compressedBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            // Resize to max 400x400 for better quality while keeping size small
+            const canvas = document.createElement('canvas');
+            const MAX_SIZE = 400;
+            let { width, height } = img;
+            
+            if (width > height) {
+              if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+            } else {
+              if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              // Start with quality 0.8, reduce if needed
+              let quality = 0.8;
+              let compressed = canvas.toDataURL('image/jpeg', quality);
+              
+              // Reduce quality if still too large (max 200KB)
+              while (compressed.length > 200000 && quality > 0.1) {
+                quality -= 0.1;
+                compressed = canvas.toDataURL('image/jpeg', quality);
+              }
+              
+              resolve(compressed);
+            } else {
+              reject(new Error('فشل في معالجة الصورة'));
+            }
+          };
+          img.onerror = () => reject(new Error('فشل في تحميل الصورة'));
+          img.src = reader.result as string;
+        };
+        reader.onerror = () => reject(new Error('فشل في قراءة الملف'));
+        reader.readAsDataURL(file);
+      });
+
+      // Send to API
+      const response = await fetch('/api/user', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatar: compressedBase64 }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
         if (isEditing) {
-          setEditedProfile({ ...editedProfile, avatar: compressed });
+          setEditedProfile({ ...editedProfile, avatar: compressedBase64 });
         } else {
-          setLocalProfileOverrides({ ...localProfileOverrides, avatar: compressed });
+          setLocalProfileOverrides({ ...localProfileOverrides, avatar: compressedBase64 });
         }
-        toast.success("تم تحديث الصورة الشخصية!");
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+        toast.success("تم تحديث الصورة الشخصية بنجاح!");
+      } else {
+        toast.error(data.error || "فشل في تحديث الصورة");
+      }
+    } catch {
+      toast.error("حدث خطأ أثناء معالجة الصورة");
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleChangePassword = async () => {
@@ -288,9 +344,14 @@ export default function ProfilePage() {
             </Avatar>
             <button
               onClick={handleAvatarClick}
-              className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors"
+              disabled={isUploadingAvatar}
+              className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Camera className="w-4 h-4" />
+              {isUploadingAvatar ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Camera className="w-4 h-4" />
+              )}
             </button>
             <input
               ref={fileInputRef}

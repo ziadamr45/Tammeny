@@ -16,9 +16,11 @@ export async function GET() {
 
     const tokenRequest = await getAblyTokenRequest(user.userId);
 
+    // Return the token request object that Ably client can use directly
     return NextResponse.json({
       success: true,
-      tokenRequest,
+      token: tokenRequest,
+      clientId: user.userId,
     });
   } catch (error) {
     console.error('Error generating Ably token:', error);

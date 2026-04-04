@@ -35,8 +35,8 @@ const comparisonData = [
     googleMapsIcon: "✅",
   },
   {
-    feature: "خصوصية البيانات",
-    tamenny: "تشفير AES-256 كامل",
+    feature: "خصوصية الموقع",
+    tamenny: "الموقع محمي بتشفير AES",
     life360: "محدود",
     googleMaps: "جوجل يجمع البيانات",
     tamennyIcon: "🔒",
@@ -63,7 +63,7 @@ const comparisonData = [
   },
   {
     feature: "وضع توفير البطارية",
-    tamenny: "ذكي - توفير 40%",
+    tamenny: "متوفر (يقلل تكرار التحديث)",
     life360: "استهلاك عالي",
     googleMaps: "استهلاك متوسط",
     tamennyIcon: "🔋",
@@ -71,8 +71,8 @@ const comparisonData = [
     googleMapsIcon: "⚠️",
   },
   {
-    feature: "دعم النت الضعيف",
-    tamenny: "يعمل أوفلاين",
+    feature: "دعم أوفلاين",
+    tamenny: "جزئي — sync عند عودة الإنترنت",
     life360: "يتوقف",
     googleMaps: "يتوقف",
     tamennyIcon: "📶",
