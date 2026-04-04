@@ -10,6 +10,7 @@ const publicRoutes = [
   '/terms',
   '/privacy',
   '/help',
+  '/compare',
 ];
 
 // API routes that don't require authentication

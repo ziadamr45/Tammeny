@@ -50,6 +50,7 @@ export default function SettingsPage() {
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const [notifications, setNotifications] = useState(true);
   const [ghostMode, setGhostMode] = useState(false);
+  const [stealthMode, setStealthMode] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(true);
   const { theme, setTheme } = useTheme();
   
