@@ -88,10 +88,30 @@ export function MapComponent({
   const tileLayerRef = useRef<L.TileLayer | null>(null);
   const { theme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const isComponentMountedRef = useRef(true);
+
+  // Helper function to check if map is valid and ready
+  const isMapValid = useCallback((map: L.Map | null): map is L.Map => {
+    if (!map) return false;
+    try {
+      const container = map.getContainer();
+      return !!(container && container.isConnected);
+    } catch {
+      return false;
+    }
+  }, []);
 
   // Get current theme (handle hydration)
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Track component mount status
+  useEffect(() => {
+    isComponentMountedRef.current = true;
+    return () => {
+      isComponentMountedRef.current = false;
+    };
   }, []);
 
   const isDark = mounted && (resolvedTheme === 'dark' || theme === 'dark');
@@ -121,12 +141,18 @@ export function MapComponent({
 
   // Initialize map
   useEffect(() => {
-    if (!mapRef.current || !leafletLoaded || mapInstance) return;
+    if (!mapRef.current || !leafletLoaded || mapInstanceRef.current) return;
+
+    let map: L.Map | null = null;
 
     const initMap = async () => {
+      if (!isComponentMountedRef.current || !mapRef.current) return;
+      
       const L = await import("leaflet");
       
-      const map = L.default.map(mapRef.current!, {
+      if (!isComponentMountedRef.current) return;
+      
+      map = L.default.map(mapRef.current, {
         center: [center.lat, center.lng],
         zoom: 15,
         zoomControl: false,
@@ -152,27 +178,32 @@ export function MapComponent({
       L.default.control.zoom({ position: "bottomleft" }).addTo(map);
 
       mapInstanceRef.current = map;
-      setMapInstance(map);
+      if (isComponentMountedRef.current) {
+        setMapInstance(map);
+      }
     };
 
     initMap();
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          // Map already removed or invalid
+        }
         mapInstanceRef.current = null;
       }
+      if (isComponentMountedRef.current) {
+        setMapInstance(null);
+      }
     };
-  }, [leafletLoaded, isDark, center.lat, center.lng]);
+  }, [leafletLoaded, isDark]);
 
   // Update center when location changes
   useEffect(() => {
-    if (!mapInstance) return;
-    
-    // Check if map is still valid and has a container
-    if (!mapInstance.getContainer() || !mapInstance.getContainer().isConnected) {
-      return;
-    }
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map)) return;
     
     // Validate coordinates
     if (typeof center.lat !== 'number' || typeof center.lng !== 'number' ||
@@ -181,28 +212,28 @@ export function MapComponent({
     }
     
     try {
-      mapInstance.setView([center.lat, center.lng], mapInstance.getZoom());
+      map.setView([center.lat, center.lng], map.getZoom());
     } catch (error) {
-      console.error("Error updating map center:", error);
+      // Silently fail - map might be in transition
     }
-  }, [center, mapInstance]);
+  }, [center, isMapValid]);
 
   // Update tile layer when theme changes
   useEffect(() => {
-    if (!mapInstance || !leafletLoaded) return;
-    
-    // Check if map is still valid and has a container
-    if (!mapInstance.getContainer() || !mapInstance.getContainer().isConnected) {
-      return;
-    }
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !leafletLoaded) return;
 
     const updateTileLayer = async () => {
+      if (!isComponentMountedRef.current) return;
+      
       const L = await import("leaflet");
+      
+      if (!isComponentMountedRef.current || !isMapValid(map)) return;
       
       try {
         // Remove existing tile layer
-        if (tileLayerRef.current && mapInstance.hasLayer(tileLayerRef.current)) {
-          mapInstance.removeLayer(tileLayerRef.current);
+        if (tileLayerRef.current && map.hasLayer(tileLayerRef.current)) {
+          map.removeLayer(tileLayerRef.current);
         }
 
         // Add new tile layer based on current theme
@@ -213,18 +244,18 @@ export function MapComponent({
         const tileLayer = L.default.tileLayer(tileUrl, {
           maxZoom: 19,
           attribution: isDark ? '&copy; <a href="https://carto.com/">CARTO</a>' : '',
-        }).addTo(mapInstance);
+        }).addTo(map);
 
         // Make sure tile layer is behind markers
         tileLayer.bringToBack();
         tileLayerRef.current = tileLayer;
       } catch (error) {
-        console.error("Error updating tile layer:", error);
+        // Silently fail - map might be in transition
       }
     };
 
     updateTileLayer();
-  }, [isDark, mapInstance, leafletLoaded]);
+  }, [isDark, leafletLoaded, isMapValid]);
 
   // Get route style based on type
   const getRouteStyle = useCallback(() => {
@@ -261,13 +292,20 @@ export function MapComponent({
 
   // Add user location marker
   useEffect(() => {
-    if (!mapInstance || !leafletLoaded || !showUserLocation) return;
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !leafletLoaded || !showUserLocation) return;
 
     const addMarker = async () => {
+      if (!isComponentMountedRef.current) return;
+      
       const L = await import("leaflet");
       
+      if (!isComponentMountedRef.current || !isMapValid(map)) return;
+      
       // Clear existing markers (but not destination or waypoint markers)
-      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current.forEach((marker) => {
+        try { marker.remove(); } catch {}
+      });
       markersRef.current = [];
 
       // Create custom icon for user location
@@ -288,122 +326,148 @@ export function MapComponent({
         iconAnchor: [25, 25],
       });
 
-      const marker = L.default.marker([center.lat, center.lng], { icon: userIcon })
-        .addTo(mapInstance)
-        .bindPopup(markerLabel);
+      try {
+        const marker = L.default.marker([center.lat, center.lng], { icon: userIcon })
+          .addTo(map)
+          .bindPopup(markerLabel);
 
-      markersRef.current.push(marker);
+        markersRef.current.push(marker);
+      } catch (error) {
+        // Silently fail - map might be in transition
+      }
     };
 
     addMarker();
-  }, [center, mapInstance, leafletLoaded, showUserLocation, markerLabel]);
+  }, [center, leafletLoaded, showUserLocation, markerLabel, isMapValid]);
 
   // Add waypoints
   useEffect(() => {
-    if (!mapInstance || !leafletLoaded || waypoints.length === 0) return;
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !leafletLoaded || waypoints.length === 0) return;
 
     const addWaypoints = async () => {
+      if (!isComponentMountedRef.current) return;
+      
       const L = await import("leaflet");
+      
+      if (!isComponentMountedRef.current || !isMapValid(map)) return;
 
       // Clear existing waypoint markers
-      waypointMarkersRef.current.forEach((marker) => marker.remove());
+      waypointMarkersRef.current.forEach((marker) => {
+        try { marker.remove(); } catch {}
+      });
       waypointMarkersRef.current = [];
 
-      waypoints.forEach((waypoint, index) => {
-        // Create waypoint icon based on type
-        const waypointIcon = L.default.divIcon({
-          html: `
-            <div class="relative -translate-x-1/2 -translate-y-1/2">
-              <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white">
-                <span class="text-white text-xs font-bold">${index + 1}</span>
-              </div>
-              ${waypoint.name ? `
-                <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap bg-white px-2 py-1 rounded-md shadow text-xs font-medium">
-                  ${waypoint.name}
+      try {
+        waypoints.forEach((waypoint, index) => {
+          // Create waypoint icon based on type
+          const waypointIcon = L.default.divIcon({
+            html: `
+              <div class="relative -translate-x-1/2 -translate-y-1/2">
+                <div class="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center shadow-lg border-2 border-white">
+                  <span class="text-white text-xs font-bold">${index + 1}</span>
                 </div>
-              ` : ''}
-            </div>
-          `,
-          className: "waypoint-marker",
-          iconSize: [30, 40],
-          iconAnchor: [15, 15],
+                ${waypoint.name ? `
+                  <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap bg-white px-2 py-1 rounded-md shadow text-xs font-medium">
+                    ${waypoint.name}
+                  </div>
+                ` : ''}
+              </div>
+            `,
+            className: "waypoint-marker",
+            iconSize: [30, 40],
+            iconAnchor: [15, 15],
+          });
+
+          const waypointMarker = L.default.marker([waypoint.lat, waypoint.lng], { icon: waypointIcon })
+            .addTo(map);
+
+          waypointMarkersRef.current.push(waypointMarker);
         });
-
-        const waypointMarker = L.default.marker([waypoint.lat, waypoint.lng], { icon: waypointIcon })
-          .addTo(mapInstance);
-
-        waypointMarkersRef.current.push(waypointMarker);
-      });
+      } catch (error) {
+        // Silently fail - map might be in transition
+      }
     };
 
     addWaypoints();
 
     return () => {
-      waypointMarkersRef.current.forEach((marker) => marker.remove());
+      waypointMarkersRef.current.forEach((marker) => {
+        try { marker.remove(); } catch {}
+      });
       waypointMarkersRef.current = [];
     };
-  }, [waypoints, mapInstance, leafletLoaded]);
+  }, [waypoints, leafletLoaded, isMapValid]);
 
   // Add destination marker and route
   useEffect(() => {
-    if (!mapInstance || !leafletLoaded || !destination) return;
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !leafletLoaded || !destination) return;
 
     const addDestination = async () => {
+      if (!isComponentMountedRef.current) return;
+      
       const L = await import("leaflet");
+      
+      if (!isComponentMountedRef.current || !isMapValid(map)) return;
 
-      // Create custom destination icon
-      const destIcon = L.default.divIcon({
-        html: `
-          <div class="relative -translate-x-1/2 -translate-y-full">
-            <div class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-lg border-2 border-white">
-              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
-              </svg>
+      try {
+        // Create custom destination icon
+        const destIcon = L.default.divIcon({
+          html: `
+            <div class="relative -translate-x-1/2 -translate-y-full">
+              <div class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center shadow-lg border-2 border-white">
+                <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                </svg>
+              </div>
+              <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap bg-white px-2 py-1 rounded-md shadow text-xs font-medium">
+                ${destinationLabel}
+              </div>
             </div>
-            <div class="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap bg-white px-2 py-1 rounded-md shadow text-xs font-medium">
-              ${destinationLabel}
-            </div>
-          </div>
-        `,
-        className: "destination-marker",
-        iconSize: [40, 50],
-        iconAnchor: [20, 50],
-      });
-
-      const destMarker = L.default.marker([destination.lat, destination.lng], { icon: destIcon })
-        .addTo(mapInstance);
-
-      markersRef.current.push(destMarker);
-
-      // Draw route if enabled
-      if (showRoute) {
-        // Remove existing route
-        if (routeRef.current) {
-          routeRef.current.remove();
-        }
-
-        // Build route points including waypoints
-        const routePoints: [number, number][] = [[center.lat, center.lng]];
-        
-        // Add waypoints in order
-        waypoints.forEach((wp) => {
-          routePoints.push([wp.lat, wp.lng]);
+          `,
+          className: "destination-marker",
+          iconSize: [40, 50],
+          iconAnchor: [20, 50],
         });
-        
-        // Add destination
-        routePoints.push([destination.lat, destination.lng]);
 
-        // Get route style
-        const style = getRouteStyle();
+        const destMarker = L.default.marker([destination.lat, destination.lng], { icon: destIcon })
+          .addTo(map);
 
-        // Draw route line
-        const routeLine = L.default.polyline(routePoints, style).addTo(mapInstance);
+        markersRef.current.push(destMarker);
 
-        routeRef.current = routeLine;
+        // Draw route if enabled
+        if (showRoute) {
+          // Remove existing route
+          if (routeRef.current) {
+            try { routeRef.current.remove(); } catch {}
+          }
 
-        // Fit bounds to show all markers
-        const bounds = L.default.latLngBounds(routePoints);
-        mapInstance.fitBounds(bounds, { padding: [50, 50] });
+          // Build route points including waypoints
+          const routePoints: [number, number][] = [[center.lat, center.lng]];
+          
+          // Add waypoints in order
+          waypoints.forEach((wp) => {
+            routePoints.push([wp.lat, wp.lng]);
+          });
+          
+          // Add destination
+          routePoints.push([destination.lat, destination.lng]);
+
+          // Get route style
+          const style = getRouteStyle();
+
+          // Draw route line
+          const routeLine = L.default.polyline(routePoints, style).addTo(map);
+
+          routeRef.current = routeLine;
+
+          // Fit bounds to show all markers
+          const bounds = L.default.latLngBounds(routePoints);
+          map.fitBounds(bounds, { padding: [50, 50] });
+        }
+      } catch (error) {
+        // Silently fail - map might be in transition
       }
     };
 
@@ -411,18 +475,23 @@ export function MapComponent({
 
     return () => {
       if (routeRef.current) {
-        routeRef.current.remove();
+        try { routeRef.current.remove(); } catch {}
         routeRef.current = null;
       }
     };
-  }, [destination, mapInstance, leafletLoaded, center, showRoute, destinationLabel, waypoints, getRouteStyle]);
+  }, [destination, leafletLoaded, center, showRoute, destinationLabel, waypoints, getRouteStyle, isMapValid]);
 
   // Animate marker along route
   useEffect(() => {
-    if (!mapInstance || !leafletLoaded || !animateMarker || !destination || !showRoute) return;
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !leafletLoaded || !animateMarker || !destination || !showRoute) return;
 
     const animateMarkerAlongRoute = async () => {
+      if (!isComponentMountedRef.current) return;
+      
       const L = await import("leaflet");
+      
+      if (!isComponentMountedRef.current || !isMapValid(map)) return;
 
       // Build route points
       const routePoints: [number, number][] = [[center.lat, center.lng]];
@@ -450,71 +519,79 @@ export function MapComponent({
 
       // Remove existing animated marker
       if (animatedMarkerRef.current) {
-        animatedMarkerRef.current.remove();
+        try { animatedMarkerRef.current.remove(); } catch {}
       }
 
-      // Create animated marker
-      const animatedMarker = L.default.marker(routePoints[0], { icon: animatedIcon })
-        .addTo(mapInstance);
+      try {
+        // Create animated marker
+        const animatedMarker = L.default.marker(routePoints[0], { icon: animatedIcon })
+          .addTo(map);
 
-      animatedMarkerRef.current = animatedMarker;
+        animatedMarkerRef.current = animatedMarker;
 
-      // Calculate total distance for progress
-      let totalDistance = 0;
-      for (let i = 0; i < routePoints.length - 1; i++) {
-        const dx = routePoints[i + 1][1] - routePoints[i][1];
-        const dy = routePoints[i + 1][0] - routePoints[i][0];
-        totalDistance += Math.sqrt(dx * dx + dy * dy);
-      }
-
-      const duration = 10000; // 10 seconds for the animation
-      let startTime: number | null = null;
-
-      const animate = (timestamp: number) => {
-        if (!startTime) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Calculate position along route
-        const targetDistance = progress * totalDistance;
-        let currentDistance = 0;
-        let currentPosition: [number, number] = routePoints[0];
-
+        // Calculate total distance for progress
+        let totalDistance = 0;
         for (let i = 0; i < routePoints.length - 1; i++) {
           const dx = routePoints[i + 1][1] - routePoints[i][1];
           const dy = routePoints[i + 1][0] - routePoints[i][0];
-          const segmentDistance = Math.sqrt(dx * dx + dy * dy);
-
-          if (currentDistance + segmentDistance >= targetDistance) {
-            const segmentProgress = (targetDistance - currentDistance) / segmentDistance;
-            currentPosition = [
-              routePoints[i][0] + dy * segmentProgress,
-              routePoints[i][1] + dx * segmentProgress,
-            ];
-            break;
-          }
-
-          currentDistance += segmentDistance;
-          currentPosition = routePoints[i + 1];
+          totalDistance += Math.sqrt(dx * dx + dy * dy);
         }
 
-        // Update marker position
-        animatedMarker.setLatLng(currentPosition);
+        const duration = 10000; // 10 seconds for the animation
+        let startTime: number | null = null;
 
-        // Center map on marker
-        mapInstance.panTo(currentPosition, { animate: false });
+        const animate = (timestamp: number) => {
+          if (!isComponentMountedRef.current || !isMapValid(map)) return;
+          
+          if (!startTime) startTime = timestamp;
+          const elapsed = timestamp - startTime;
+          const progress = Math.min(elapsed / duration, 1);
 
-        if (progress < 1) {
-          animationFrameRef.current = requestAnimationFrame(animate);
-        } else {
-          // Animation complete
-          if (onRouteComplete) {
-            onRouteComplete();
+          // Calculate position along route
+          const targetDistance = progress * totalDistance;
+          let currentDistance = 0;
+          let currentPosition: [number, number] = routePoints[0];
+
+          for (let i = 0; i < routePoints.length - 1; i++) {
+            const dx = routePoints[i + 1][1] - routePoints[i][1];
+            const dy = routePoints[i + 1][0] - routePoints[i][0];
+            const segmentDistance = Math.sqrt(dx * dx + dy * dy);
+
+            if (currentDistance + segmentDistance >= targetDistance) {
+              const segmentProgress = (targetDistance - currentDistance) / segmentDistance;
+              currentPosition = [
+                routePoints[i][0] + dy * segmentProgress,
+                routePoints[i][1] + dx * segmentProgress,
+              ];
+              break;
+            }
+
+            currentDistance += segmentDistance;
+            currentPosition = routePoints[i + 1];
           }
-        }
-      };
 
-      animationFrameRef.current = requestAnimationFrame(animate);
+          // Update marker position
+          try {
+            animatedMarker.setLatLng(currentPosition);
+
+            // Center map on marker
+            map.panTo(currentPosition, { animate: false });
+          } catch {}
+
+          if (progress < 1) {
+            animationFrameRef.current = requestAnimationFrame(animate);
+          } else {
+            // Animation complete
+            if (onRouteComplete) {
+              onRouteComplete();
+            }
+          }
+        };
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } catch (error) {
+        // Silently fail - map might be in transition
+      }
     };
 
     animateMarkerAlongRoute();
@@ -524,15 +601,16 @@ export function MapComponent({
         cancelAnimationFrame(animationFrameRef.current);
       }
       if (animatedMarkerRef.current) {
-        animatedMarkerRef.current.remove();
+        try { animatedMarkerRef.current.remove(); } catch {}
         animatedMarkerRef.current = null;
       }
     };
-  }, [animateMarker, destination, mapInstance, leafletLoaded, showRoute, center, waypoints, onRouteComplete]);
+  }, [animateMarker, destination, leafletLoaded, showRoute, center, waypoints, onRouteComplete, isMapValid]);
 
   // Handle click for location selection
   useEffect(() => {
-    if (!mapInstance || !interactive || !onLocationSelect) return;
+    const map = mapInstanceRef.current;
+    if (!isMapValid(map) || !interactive || !onLocationSelect) return;
 
     const handleClick = async (e: L.LeafletMouseEvent) => {
       onLocationSelect({
@@ -541,12 +619,16 @@ export function MapComponent({
       });
     };
 
-    mapInstance.on("click", handleClick);
+    try {
+      map.on("click", handleClick);
+    } catch {}
 
     return () => {
-      mapInstance.off("click", handleClick);
+      try {
+        map.off("click", handleClick);
+      } catch {}
     };
-  }, [mapInstance, interactive, onLocationSelect]);
+  }, [interactive, onLocationSelect, isMapValid]);
 
   // Get current location on mount - works anywhere in the world
   useEffect(() => {
@@ -609,7 +691,12 @@ export function MapComponent({
       <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">
         {currentLocation && (
           <button
-            onClick={() => mapInstance?.setView([currentLocation.lat, currentLocation.lng], 17)}
+            onClick={() => {
+              const map = mapInstanceRef.current;
+              if (isMapValid(map)) {
+                map.setView([currentLocation.lat, currentLocation.lng], 17);
+              }
+            }}
             className="w-10 h-10 rounded-xl bg-white shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors"
             title="موقعي الحالي"
           >
