@@ -169,34 +169,58 @@ export function MapComponent({
   useEffect(() => {
     if (!mapInstance) return;
     
-    mapInstance.setView([center.lat, center.lng], mapInstance.getZoom());
+    // Check if map is still valid and has a container
+    if (!mapInstance.getContainer() || !mapInstance.getContainer().isConnected) {
+      return;
+    }
+    
+    // Validate coordinates
+    if (typeof center.lat !== 'number' || typeof center.lng !== 'number' ||
+        isNaN(center.lat) || isNaN(center.lng)) {
+      return;
+    }
+    
+    try {
+      mapInstance.setView([center.lat, center.lng], mapInstance.getZoom());
+    } catch (error) {
+      console.error("Error updating map center:", error);
+    }
   }, [center, mapInstance]);
 
   // Update tile layer when theme changes
   useEffect(() => {
     if (!mapInstance || !leafletLoaded) return;
+    
+    // Check if map is still valid and has a container
+    if (!mapInstance.getContainer() || !mapInstance.getContainer().isConnected) {
+      return;
+    }
 
     const updateTileLayer = async () => {
       const L = await import("leaflet");
       
-      // Remove existing tile layer
-      if (tileLayerRef.current) {
-        mapInstance.removeLayer(tileLayerRef.current);
+      try {
+        // Remove existing tile layer
+        if (tileLayerRef.current && mapInstance.hasLayer(tileLayerRef.current)) {
+          mapInstance.removeLayer(tileLayerRef.current);
+        }
+
+        // Add new tile layer based on current theme
+        const tileUrl = isDark 
+          ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+        const tileLayer = L.default.tileLayer(tileUrl, {
+          maxZoom: 19,
+          attribution: isDark ? '&copy; <a href="https://carto.com/">CARTO</a>' : '',
+        }).addTo(mapInstance);
+
+        // Make sure tile layer is behind markers
+        tileLayer.bringToBack();
+        tileLayerRef.current = tileLayer;
+      } catch (error) {
+        console.error("Error updating tile layer:", error);
       }
-
-      // Add new tile layer based on current theme
-      const tileUrl = isDark 
-        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-
-      const tileLayer = L.default.tileLayer(tileUrl, {
-        maxZoom: 19,
-        attribution: isDark ? '&copy; <a href="https://carto.com/">CARTO</a>' : '',
-      }).addTo(mapInstance);
-
-      // Make sure tile layer is behind markers
-      tileLayer.bringToBack();
-      tileLayerRef.current = tileLayer;
     };
 
     updateTileLayer();
