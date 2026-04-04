@@ -28,7 +28,6 @@ import {
   HelpCircle,
   Info,
   History,
-  Palette,
   Settings,
   AlertTriangle,
   Battery,
@@ -40,16 +39,20 @@ import {
   RefreshCw,
   Loader2,
   BarChart3,
+  Check,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/contexts/language-context";
+import type { Language } from "@/lib/i18n";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
+  const { language, setLanguage, t, direction } = useLanguage();
   const [notifications, setNotifications] = useState(true);
   const [ghostMode, setGhostMode] = useState(false);
   const [stealthMode, setStealthMode] = useState(false);
@@ -58,13 +61,13 @@ export default function SettingsPage() {
   // Load stealth mode from user settings
   useEffect(() => {
     if (user?.id) {
-      // Fetch user settings to get stealth mode
       const fetchUserSettings = async () => {
         try {
           const response = await fetch('/api/auth/me');
           const data = await response.json();
           if (data.success && data.user) {
             setStealthMode(data.user.stealthMode || false);
+            setNotifications(data.user.notificationsEnabled ?? true);
           }
         } catch (error) {
           console.error('Error fetching user settings:', error);
@@ -85,16 +88,41 @@ export default function SettingsPage() {
       });
       const data = await response.json();
       if (data.success) {
-        toast.success(enabled ? "تم تفعيل وضع الصمت" : "تم إيقاف وضع الصمت");
+        toast.success(language === 'ar' 
+          ? (enabled ? "تم تفعيل وضع الصمت" : "تم إيقاف وضع الصمت")
+          : (enabled ? "Stealth mode enabled" : "Stealth mode disabled"));
       } else {
-        setStealthMode(!enabled); // Revert on error
-        toast.error("فشل في تحديث الإعدادات");
+        setStealthMode(!enabled);
+        toast.error(language === 'ar' ? "فشل في تحديث الإعدادات" : "Failed to update settings");
       }
     } catch (error) {
-      setStealthMode(!enabled); // Revert on error
-      toast.error("فشل في تحديث الإعدادات");
+      setStealthMode(!enabled);
+      toast.error(language === 'ar' ? "فشل في تحديث الإعدادات" : "Failed to update settings");
     }
   };
+
+  // Handle notifications toggle
+  const handleNotificationsToggle = async (enabled: boolean) => {
+    setNotifications(enabled);
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationsEnabled: enabled }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success(language === 'ar'
+          ? (enabled ? "تم تفعيل الإشعارات" : "تم إيقاف الإشعارات")
+          : (enabled ? "Notifications enabled" : "Notifications disabled"));
+      } else {
+        setNotifications(!enabled);
+      }
+    } catch (error) {
+      setNotifications(!enabled);
+    }
+  };
+
   const { theme, setTheme } = useTheme();
   
   // Battery saver state
@@ -111,7 +139,7 @@ export default function SettingsPage() {
 
   // Calculate estimated savings based on settings
   const calculatedSavings = useMemo(() => {
-    let savings = 30; // Base savings
+    let savings = 30;
     if (locationAccuracy) savings -= 5;
     if (notifications) savings -= 2;
     return Math.max(15, savings);
@@ -126,7 +154,6 @@ export default function SettingsPage() {
           setBatteryLevel(Math.round(battery.level * 100));
         }
       } catch {
-        // Battery API not supported
         setBatteryLevel(null);
       }
     };
@@ -135,72 +162,110 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await logout();
-    toast.success("تم تسجيل الخروج بنجاح");
+    toast.success(language === 'ar' ? "تم تسجيل الخروج بنجاح" : "Logged out successfully");
     router.push("/login");
   };
 
-  const handleThemeChange = (isDark: boolean) => {
+  const handleThemeChange = async (isDark: boolean) => {
     setTheme(isDark ? "dark" : "light");
-    toast.success(isDark ? "تم تفعيل الوضع الليلي" : "تم تفعيل الوضع النهاري");
+    
+    // Save to database
+    try {
+      await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ darkMode: isDark }),
+      });
+    } catch (error) {
+      console.log('Could not save theme preference');
+    }
+    
+    toast.success(language === 'ar'
+      ? (isDark ? "تم تفعيل الوضع الداكن" : "تم تفعيل الوضع الفاتح")
+      : (isDark ? "Dark mode enabled" : "Light mode enabled"));
   };
 
-  const handleBatterySaverToggle = (enabled: boolean) => {
+  const handleBatterySaverToggle = async (enabled: boolean) => {
     setBatterySaverEnabled(enabled);
+    
+    // Save to database
+    try {
+      await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batterySaver: enabled }),
+      });
+    } catch (error) {
+      console.log('Could not save battery saver preference');
+    }
+    
     if (enabled) {
-      toast.success("تم تفعيل وضع توفير البطارية");
+      toast.success(language === 'ar' ? "تم تفعيل وضع توفير البطارية" : "Battery saver enabled");
     } else {
-      toast.info("تم إيقاف وضع توفير البطارية");
+      toast.info(language === 'ar' ? "تم إيقاف وضع توفير البطارية" : "Battery saver disabled");
     }
   };
+
+  const handleLanguageChange = async (lang: Language) => {
+    await setLanguage(lang);
+    toast.success(lang === 'ar' ? "تم تغيير اللغة" : "Language changed");
+  };
+
+  // Auth Loading State
+  if (authLoading) {
+    return (
+      <main className="min-h-screen bg-background pb-20">
+        <Header />
+        <div className="pt-16 px-4 flex flex-col items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
+          <p className="text-muted-foreground">{t.common.loading}</p>
+        </div>
+      </main>
+    );
+  }
+
+  // Not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <main className="min-h-screen bg-background pb-20">
       <Header />
 
       <div className="pt-16 px-4 space-y-6">
-        {/* Auth Loading State */}
-        {authLoading && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
-            <p className="text-muted-foreground">جاري التحميل...</p>
-          </div>
-        )}
-
-        {/* Content - only show when authenticated */}
-        {!authLoading && isAuthenticated && (
-          <>
-            {/* User Profile Card */}
-            <Link href="/profile">
-              <Card className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-16 h-16 border-2 border-primary/20">
-                    <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
-                      {user?.name?.[0] || "أ"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <h2 className="font-bold text-lg">{user?.name || "المستخدم"}</h2>
-                    <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
-                    <Badge className="mt-1 bg-primary/10 text-primary gap-1">
-                      <Lock className="w-3 h-3" />
-                      AES-256 مشفّر
-                    </Badge>
-                  </div>
-                  <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-                </div>
-              </Card>
-            </Link>
+        {/* User Profile Card */}
+        <Link href="/profile">
+          <Card className="p-4 card-shadow hover:shadow-lg transition-all cursor-pointer hover:-translate-y-0.5 border border-transparent hover:border-primary/20">
+            <div className="flex items-center gap-4">
+              <Avatar className="w-16 h-16 border-2 border-primary/20">
+                <AvatarFallback className="bg-gradient-to-br from-primary to-teal-dark text-primary-foreground text-xl">
+                  {user?.name?.[0] || (language === 'ar' ? "أ" : "U")}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h2 className="font-bold text-lg">{user?.name || (language === 'ar' ? "المستخدم" : "User")}</h2>
+                <p className="text-sm text-muted-foreground">{user?.email || ""}</p>
+                <Badge className="mt-1 bg-primary/10 text-primary gap-1">
+                  <Lock className="w-3 h-3" />
+                  {language === 'ar' ? "AES-256 مشفّر" : "AES-256 Encrypted"}
+                </Badge>
+              </div>
+              <ChevronLeft className={cn("w-5 h-5 text-muted-foreground", direction === 'ltr' && "rotate-180")} />
+            </div>
+          </Card>
+        </Link>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">
           <Link href="/emergency-contacts">
             <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-red-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                   <AlertTriangle className="w-5 h-5 text-red-600" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">جهات الطوارئ</div>
+                  <div className="font-medium text-sm">{language === 'ar' ? "جهات الطوارئ" : "Emergency"}</div>
                   <div className="text-xs text-muted-foreground">SOS</div>
                 </div>
               </div>
@@ -213,8 +278,8 @@ export default function SettingsPage() {
                   <History className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">سجل الرحلات</div>
-                  <div className="text-xs text-muted-foreground">عرض التاريخ</div>
+                  <div className="font-medium text-sm">{t.history.title}</div>
+                  <div className="text-xs text-muted-foreground">{language === 'ar' ? "عرض التاريخ" : "View history"}</div>
                 </div>
               </div>
             </Card>
@@ -222,12 +287,12 @@ export default function SettingsPage() {
           <Link href="/notifications">
             <Card className="p-4 card-shadow hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer border border-transparent hover:border-primary/20">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
                   <Bell className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">الإشعارات</div>
-                  <div className="text-xs text-muted-foreground">المركز</div>
+                  <div className="font-medium text-sm">{t.settings.notifications}</div>
+                  <div className="text-xs text-muted-foreground">{language === 'ar' ? "المركز" : "Center"}</div>
                 </div>
               </div>
             </Card>
@@ -239,13 +304,90 @@ export default function SettingsPage() {
                   <ShieldCheck className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">المناطق الآمنة</div>
-                  <div className="text-xs text-muted-foreground">إدارة</div>
+                  <div className="font-medium text-sm">{t.settings.safeZones}</div>
+                  <div className="text-xs text-muted-foreground">{language === 'ar' ? "إدارة" : "Manage"}</div>
                 </div>
               </div>
             </Card>
           </Link>
         </div>
+
+        {/* Language & Theme Card */}
+        <Card className="card-shadow divide-y divide-border">
+          <h3 className="font-bold p-4 flex items-center gap-2">
+            <Palette className="w-5 h-5 text-primary" />
+            {language === 'ar' ? "المظهر واللغة" : "Appearance & Language"}
+          </h3>
+
+          {/* Language Selector */}
+          <div className="p-4">
+            <div className="flex items-center gap-4 mb-3">
+              <div className="text-primary"><Globe className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">{t.settings.language}</div>
+                <div className="text-sm text-muted-foreground">
+                  {language === 'ar' ? "اختر لغة التطبيق" : "Choose app language"}
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleLanguageChange('ar')}
+                className={cn(
+                  "flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                  language === 'ar'
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                {language === 'ar' && <Check className="w-4 h-4" />}
+                <span className="font-medium">العربية</span>
+              </button>
+              <button
+                onClick={() => handleLanguageChange('en')}
+                className={cn(
+                  "flex-1 p-3 rounded-xl border-2 transition-all flex items-center justify-center gap-2",
+                  language === 'en'
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border hover:border-primary/50"
+                )}
+              >
+                {language === 'en' && <Check className="w-4 h-4" />}
+                <span className="font-medium">English</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Dark Mode Toggle */}
+          <div className="flex items-center gap-4 p-4">
+            <div className="text-primary">
+              <Moon className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <div className="font-medium">{t.settings.darkMode}</div>
+              <div className="text-sm text-muted-foreground">{t.settings.darkModeDesc}</div>
+            </div>
+            <button
+              onClick={() => handleThemeChange(theme !== "dark")}
+              className={cn(
+                "w-14 h-8 rounded-full p-1 transition-all duration-300",
+                theme === "dark" ? "bg-primary" : "bg-muted"
+              )}
+            >
+              <div
+                className={cn(
+                  "w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300 flex items-center justify-center",
+                  direction === 'rtl' 
+                    ? (theme === "dark" ? "translate-x-[-100%]" : "")
+                    : (theme === "dark" ? "translate-x-6" : "")
+                )}
+              >
+                <Sun className="w-3 h-3 text-yellow-500 dark:hidden" />
+                <Moon className="w-3 h-3 text-primary hidden dark:block" />
+              </div>
+            </button>
+          </div>
+        </Card>
 
         {/* Battery Saver Section */}
         <Card className="card-shadow overflow-hidden">
@@ -268,9 +410,11 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <div>
-                  <h3 className="font-bold">وضع توفير البطارية</h3>
+                  <h3 className="font-bold">{t.settings.batterySaver}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {batterySaverEnabled ? "نشط - تقليل استهلاك GPS" : "يوفر حتى 30% من البطارية"}
+                    {batterySaverEnabled 
+                      ? (language === 'ar' ? "نشط - تقليل استهلاك GPS" : "Active - Reducing GPS usage")
+                      : (language === 'ar' ? "يوفر حتى 30% من البطارية" : "Save up to 30% battery")}
                   </p>
                 </div>
               </div>
@@ -280,11 +424,10 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Battery Level Indicator */}
             {batteryLevel !== null && (
               <div className="mb-3 p-3 rounded-lg bg-white/50 dark:bg-black/20">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">مستوى البطارية</span>
+                  <span className="text-sm font-medium">{language === 'ar' ? "مستوى البطارية" : "Battery Level"}</span>
                   <span className={cn(
                     "text-sm font-bold",
                     batteryLevel < 20 ? "text-red-500" : batteryLevel < 50 ? "text-yellow-500" : "text-green-500"
@@ -302,237 +445,118 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Estimated Savings */}
             {batterySaverEnabled && (
               <div className="flex items-center gap-2 p-2 rounded-lg bg-green-100/50 dark:bg-green-800/30">
                 <Zap className="w-4 h-4 text-green-600" />
                 <span className="text-sm text-green-700 dark:text-green-300">
-                  التوفير المتوقع: ~{calculatedSavings}% من البطارية
+                  {language === 'ar' 
+                    ? `التوفير المتوقع: ~${calculatedSavings}% من البطارية`
+                    : `Estimated savings: ~${calculatedSavings}% battery`}
                 </span>
               </div>
             )}
           </div>
-
-          {/* Battery Saver Options */}
-          <div className="divide-y divide-border">
-            <div className="flex items-center gap-4 p-4">
-              <div className="text-amber-500">
-                <BatteryLow className="w-5 h-5" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">تفعيل تلقائي عند انخفاض البطارية</div>
-                <div className="text-sm text-muted-foreground">
-                  يتم التفعيل تلقائياً عند وصول البطارية لـ 20%
-                </div>
-              </div>
-              <Switch
-                checked={autoEnableLowBattery}
-                onCheckedChange={setAutoEnableLowBattery}
-              />
-            </div>
-
-            <div className="p-4 bg-muted/30">
-              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-                <Gauge className="w-4 h-4 text-primary" />
-                ماذا يفعل وضع التوفير؟
-              </h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <RefreshCw className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-                  <span>تقليل تكرار تحديث الموقع من كل ثانية إلى كل ٥ ثواني</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-                  <span>تقليل دقة GPS في الخلفية</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Clock className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-                  <span>تأجيل التحديثات غير الضرورية</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Zap className="w-4 h-4 mt-0.5 text-primary shrink-0" />
-                  <span>تقليل استهلاك الشبكة</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Impact Notice */}
-            <div className="p-4">
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-                <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  ملاحظة: قد يتأخر تحديث موقعك قليلاً عند تفعيل هذا الوضع، لكنه يظل دقيقاً بما يكفي للسلامة.
-                </p>
-              </div>
-            </div>
-          </div>
         </Card>
 
-        {/* Settings Sections */}
+        {/* Privacy Settings */}
         <Card className="card-shadow divide-y divide-border">
           <h3 className="font-bold p-4 flex items-center gap-2">
             <Shield className="w-5 h-5 text-primary" />
-            إعدادات الخصوصية
+            {language === 'ar' ? "إعدادات الخصوصية" : "Privacy Settings"}
           </h3>
-
-          <Link href="/settings">
-            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="text-primary"><Shield className="w-5 h-5" /></div>
-              <div className="flex-1">
-                <div className="font-medium">الحماية والخصوصية</div>
-                <div className="text-sm text-muted-foreground">إدارة إعدادات الأمان</div>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-            </div>
-          </Link>
           
-          <SettingsToggle
-            icon={<Bell className="w-5 h-5" />}
-            title="الإشعارات"
-            description="تلقي تنبيهات الوصول والقرب"
-            checked={notifications}
-            onChange={setNotifications}
-          />
-          
-          {/* Dark Mode Toggle */}
           <div className="flex items-center gap-4 p-4">
-            <div className="text-primary">
-              <Moon className="w-5 h-5" />
-            </div>
+            <div className="text-primary"><Bell className="w-5 h-5" /></div>
             <div className="flex-1">
-              <div className="font-medium">الوضع الليلي</div>
+              <div className="font-medium">{t.settings.notifications}</div>
               <div className="text-sm text-muted-foreground">
-                تغيير مظهر التطبيق
+                {language === 'ar' ? "تلقي تنبيهات الوصول والقرب" : "Receive arrival and proximity alerts"}
               </div>
             </div>
-            <button
-              onClick={() => handleThemeChange(theme !== "dark")}
-              className={cn(
-                "w-14 h-8 rounded-full p-1 transition-all duration-300",
-                theme === "dark" ? "bg-primary" : "bg-muted"
-              )}
-            >
-              <div
-                className={cn(
-                  "w-6 h-6 rounded-full bg-white shadow-md transition-all duration-300 flex items-center justify-center dark:translate-x-6",
-                )}
-              >
-                <Sun className="w-3 h-3 text-yellow-500 dark:hidden" />
-                <Moon className="w-3 h-3 text-primary hidden dark:block" />
-              </div>
-            </button>
+            <Switch checked={notifications} onCheckedChange={handleNotificationsToggle} />
           </div>
           
-          <SettingsToggle
-            icon={<Eye className="w-5 h-5" />}
-            title="الوضع الخفي"
-            description="إخفاء الموقع الدقيق"
-            checked={ghostMode}
-            onChange={setGhostMode}
-          />
-          
-          {/* Stealth Mode Toggle - وضع الصمت */}
+          {/* Stealth Mode Toggle */}
           <div className="flex items-center gap-4 p-4">
             <div className={cn("transition-colors", stealthMode ? "text-purple-500" : "text-primary")}>
               {stealthMode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </div>
             <div className="flex-1">
               <div className="font-medium flex items-center gap-2">
-                وضع الصمت
+                {t.settings.stealthMode}
                 {stealthMode && (
                   <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 text-xs">
-                    نشط
+                    {language === 'ar' ? "نشط" : "Active"}
                   </Badge>
                 )}
               </div>
-              <div className="text-sm text-muted-foreground">
-                مشاركة الموقع بصمت دون إشعارات
-              </div>
-              {stealthMode && (
-                <div className="mt-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
-                  <ul className="text-xs text-purple-700 dark:text-purple-300 space-y-1">
-                    <li>• لن يتم إرسال إشعارات للآخرين</li>
-                    <li>• سيظهر موقعك كآخر موقع معروف</li>
-                    <li>• يمكنك الاطلاع على مواقع الآخرين</li>
-                  </ul>
-                </div>
-              )}
+              <div className="text-sm text-muted-foreground">{t.settings.stealthModeDesc}</div>
             </div>
-            <Switch 
-              checked={stealthMode} 
-              onCheckedChange={handleStealthModeToggle} 
-            />
+            <Switch checked={stealthMode} onCheckedChange={handleStealthModeToggle} />
           </div>
-          
-          <SettingsToggle
-            icon={<MapPin className="w-5 h-5" />}
-            title="دقة الموقع العالية"
-            description="استخدام GPS عالي الدقة"
-            checked={locationAccuracy}
-            onChange={setLocationAccuracy}
-          />
         </Card>
 
         {/* More Settings */}
         <Card className="card-shadow divide-y divide-border">
           <h3 className="font-bold p-4 flex items-center gap-2">
             <Settings className="w-5 h-5 text-primary" />
-            إعدادات أخرى
+            {t.settings.about}
           </h3>
 
-          <Link href="/settings">
-            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="text-primary"><Smartphone className="w-5 h-5" /></div>
-              <div className="flex-1">
-                <div className="font-medium">إعدادات الجهاز</div>
-                <div className="text-sm text-muted-foreground">إدارة الأجهزة المرتبطة</div>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-            </div>
-          </Link>
-          
-          <div className="flex items-center gap-4 p-4">
-            <div className="text-primary"><Globe className="w-5 h-5" /></div>
-            <div className="flex-1">
-              <div className="font-medium">اللغة</div>
-              <div className="text-sm text-muted-foreground">العربية</div>
-            </div>
-            <Badge variant="secondary" className="text-xs">الافتراضية</Badge>
-          </div>
-          
           <Link href="/help">
             <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="text-primary"><HelpCircle className="w-5 h-5" /></div>
               <div className="flex-1">
-                <div className="font-medium">المساعدة</div>
-                <div className="text-sm text-muted-foreground">الأسئلة الشائعة والدعم</div>
+                <div className="font-medium">{t.settings.help}</div>
+                <div className="text-sm text-muted-foreground">{t.settings.faq}</div>
               </div>
-              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+              <ChevronLeft className={cn("w-5 h-5 text-muted-foreground", direction === 'ltr' && "rotate-180")} />
             </div>
           </Link>
 
-          <Link
-            href="/compare"
-            className="flex items-center justify-between p-4 hover:bg-muted rounded-xl transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-primary" />
+          <Link href="/terms">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><Shield className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">{t.settings.termsOfService}</div>
               </div>
-              <div>
-                <div className="font-medium">لماذا طمنّي؟</div>
-                <div className="text-sm text-muted-foreground">مقارنة مع التطبيقات الأخرى</div>
-              </div>
+              <ChevronLeft className={cn("w-5 h-5 text-muted-foreground", direction === 'ltr' && "rotate-180")} />
             </div>
-            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
           </Link>
-          
-          <SettingsItem
-            icon={<Info className="w-5 h-5" />}
-            title="حول التطبيق"
-            description="الإصدار 1.0.0"
-            onClick={() => toast.info("طمنّي v1.0.0")}
-          />
+
+          <Link href="/privacy">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><Lock className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">{t.settings.privacyPolicy}</div>
+              </div>
+              <ChevronLeft className={cn("w-5 h-5 text-muted-foreground", direction === 'ltr' && "rotate-180")} />
+            </div>
+          </Link>
+
+          <Link href="/compare">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><BarChart3 className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">{t.settings.whyTamenny}</div>
+                <div className="text-sm text-muted-foreground">
+                  {language === 'ar' ? "مقارنة مع التطبيقات الأخرى" : "Compare with other apps"}
+                </div>
+              </div>
+              <ChevronLeft className={cn("w-5 h-5 text-muted-foreground", direction === 'ltr' && "rotate-180")} />
+            </div>
+          </Link>
+
+          <div
+            className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => toast.info("Tamenny v1.0.0")}
+          >
+            <div className="text-primary"><Info className="w-5 h-5" /></div>
+            <div className="flex-1">
+              <div className="font-medium">{language === 'ar' ? "حول التطبيق" : "About App"}</div>
+              <div className="text-sm text-muted-foreground">{t.settings.version} 1.0.0</div>
+            </div>
+          </div>
         </Card>
 
         {/* Logout Button */}
@@ -541,17 +565,15 @@ export default function SettingsPage() {
           className="w-full h-12 text-destructive border-destructive/50 hover:bg-destructive/10 rounded-xl"
           onClick={handleLogout}
         >
-          <LogOut className="w-5 h-5 ml-2" />
-          تسجيل الخروج
+          <LogOut className={cn("w-5 h-5", direction === 'rtl' ? 'ml-2' : 'mr-2')} />
+          {t.settings.logout}
         </Button>
 
         {/* Footer */}
         <div className="text-center text-xs text-muted-foreground pb-4">
-          <p>طمنّي © 2025</p>
-          <p className="mt-1">صُنع بـ ❤️ في مصر</p>
+          <p>{t.settings.copyright}</p>
+          <p className="mt-1">{language === 'ar' ? "صُنع بـ ❤️ في مصر" : "Made with ❤️ in Egypt"}</p>
         </div>
-          </>
-        )}
       </div>
 
       <BottomNav />
@@ -559,53 +581,5 @@ export default function SettingsPage() {
   );
 }
 
-function SettingsItem({
-  icon,
-  title,
-  description,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick?: () => void;
-}) {
-  return (
-    <div
-      className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-      onClick={onClick}
-    >
-      <div className="text-primary">{icon}</div>
-      <div className="flex-1">
-        <div className="font-medium">{title}</div>
-        <div className="text-sm text-muted-foreground">{description}</div>
-      </div>
-      <ChevronLeft className="w-5 h-5 text-muted-foreground" />
-    </div>
-  );
-}
-
-function SettingsToggle({
-  icon,
-  title,
-  description,
-  checked,
-  onChange,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (val: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center gap-4 p-4">
-      <div className="text-primary">{icon}</div>
-      <div className="flex-1">
-        <div className="font-medium">{title}</div>
-        <div className="text-sm text-muted-foreground">{description}</div>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-}
+// Import Palette icon
+import { Palette } from "lucide-react";
