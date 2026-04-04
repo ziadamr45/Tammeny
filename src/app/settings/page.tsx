@@ -375,12 +375,16 @@ export default function SettingsPage() {
             إعدادات الخصوصية
           </h3>
 
-          <SettingsItem
-            icon={<Shield className="w-5 h-5" />}
-            title="الحماية والخصوصية"
-            description="إدارة إعدادات الأمان"
-            onClick={() => toast.info("قريباً")}
-          />
+          <Link href="/settings">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><Shield className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">الحماية والخصوصية</div>
+                <div className="text-sm text-muted-foreground">إدارة إعدادات الأمان</div>
+              </div>
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </Link>
           
           <SettingsToggle
             icon={<Bell className="w-5 h-5" />}
@@ -476,19 +480,25 @@ export default function SettingsPage() {
             إعدادات أخرى
           </h3>
 
-          <SettingsItem
-            icon={<Smartphone className="w-5 h-5" />}
-            title="إعدادات الجهاز"
-            description="إدارة الأجهزة المرتبطة"
-            onClick={() => toast.info("قريباً")}
-          />
+          <Link href="/settings">
+            <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="text-primary"><Smartphone className="w-5 h-5" /></div>
+              <div className="flex-1">
+                <div className="font-medium">إعدادات الجهاز</div>
+                <div className="text-sm text-muted-foreground">إدارة الأجهزة المرتبطة</div>
+              </div>
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            </div>
+          </Link>
           
-          <SettingsItem
-            icon={<Globe className="w-5 h-5" />}
-            title="اللغة"
-            description="العربية"
-            onClick={() => toast.info("قريباً")}
-          />
+          <div className="flex items-center gap-4 p-4">
+            <div className="text-primary"><Globe className="w-5 h-5" /></div>
+            <div className="flex-1">
+              <div className="font-medium">اللغة</div>
+              <div className="text-sm text-muted-foreground">العربية</div>
+            </div>
+            <Badge variant="secondary" className="text-xs">الافتراضية</Badge>
+          </div>
           
           <Link href="/help">
             <div className="flex items-center gap-4 p-4 cursor-pointer hover:bg-muted/50 transition-colors">
