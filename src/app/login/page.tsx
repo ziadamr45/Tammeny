@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, Shield, LockKeyhole } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, Shield, Database, RefreshCw, HeadphonesIcon } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { LogoInline } from "@/components/tamenny/logo";
@@ -54,6 +54,16 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col items-center py-8 px-4">
+      {/* Customer Service Button - Top Right */}
+      <div className="w-full max-w-md flex justify-start mb-4">
+        <Link href="/help">
+          <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-primary">
+            <HeadphonesIcon className="w-5 h-5" />
+            <span className="text-sm">خدمة العملاء</span>
+          </Button>
+        </Link>
+      </div>
+
       {/* Logo Section */}
       <div className="flex flex-col items-center mb-6">
         <LogoInline size="lg" showText />
@@ -154,7 +164,15 @@ export default function LoginPage() {
 
         {/* Terms Text */}
         <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
-          من خلال تسجيل دخولك، فإنك توافق على شروط الاستخدام وسياسة الخصوصية لـ طمنّي
+          من خلال تسجيل دخولك، فإنك توافق على{" "}
+          <Link href="/terms" className="text-primary font-medium hover:underline">
+            شروط الاستخدام
+          </Link>
+          {" "}و{" "}
+          <Link href="/privacy" className="text-primary font-medium hover:underline">
+            سياسة الخصوصية
+          </Link>
+          {" "}لـ طمنّي
         </p>
       </Card>
 
@@ -162,21 +180,21 @@ export default function LoginPage() {
       <div className="flex justify-center gap-8 mt-8 w-full max-w-md">
         <div className="flex flex-col items-center gap-2">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <CheckCircle2 className="w-6 h-6 text-primary" />
-          </div>
-          <span className="text-xs text-muted-foreground font-medium">أمان مضمون</span>
-        </div>
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
             <Shield className="w-6 h-6 text-primary" />
           </div>
-          <span className="text-xs text-muted-foreground font-medium">خصوصية محمية</span>
+          <span className="text-xs text-muted-foreground font-medium">اتصال آمن</span>
         </div>
         <div className="flex flex-col items-center gap-2">
           <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
-            <LockKeyhole className="w-6 h-6 text-primary" />
+            <Database className="w-6 h-6 text-primary" />
           </div>
-          <span className="text-xs text-muted-foreground font-medium">بيانات آمنة</span>
+          <span className="text-xs text-muted-foreground font-medium">حماية بيانات</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <RefreshCw className="w-6 h-6 text-primary" />
+          </div>
+          <span className="text-xs text-muted-foreground font-medium">تزامن فوري</span>
         </div>
       </div>
     </main>
