@@ -158,8 +158,23 @@ export async function GET(request: NextRequest) {
         data: { status: "expired" },
       });
       return NextResponse.json({
-        ...session,
-        status: "expired",
+        session: {
+          id: session.id,
+          encryptedId: session.encryptedId,
+          status: "expired",
+          creatorName: session.creator.name,
+          creatorAvatar: session.creator.avatar,
+          currentLat: null,
+          currentLng: null,
+          destLat: session.destLat,
+          destLng: session.destLng,
+          destName: session.destName,
+          distance: 0,
+          eta: null,
+          isGhostMode: session.isGhostMode,
+          startedAt: session.startedAt,
+          expiresAt: session.expiresAt,
+        }
       });
     }
 

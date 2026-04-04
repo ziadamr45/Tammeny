@@ -152,17 +152,11 @@ export async function GET(request: NextRequest) {
 // POST - Send a message
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'غير مسجل الدخول' },
-        { status: 401 }
-      );
-    }
+    // حاول تجيب المستخدم المسجل — لكن مش إلزامي
+    const user = await getCurrentUser().catch(() => null);
 
     const body = await request.json();
-    const { sessionId, content, receiverId, type } = body;
+    const { sessionId, content, receiverId, type, guestName } = body;
 
     if (!sessionId || !content) {
       return NextResponse.json(
@@ -171,13 +165,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create message
+    // تحقق إن الـ session موجودة وشغالة
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+      select: { id: true, status: true, creatorId: true, isRestricted: true }
+    });
+
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: 'الجلسة غير موجودة' },
+        { status: 404 }
+      );
+    }
+
+    if (session.status !== 'active') {
+      return NextResponse.json(
+        { success: false, error: 'الجلسة غير نشطة' },
+        { status: 400 }
+      );
+    }
+
+    // لو الجلسة مقيدة (restricted)، يجب أن يكون المستخدم مسجلاً
+    if (session.isRestricted && !user) {
+      return NextResponse.json(
+        { success: false, error: 'يجب تسجيل الدخول لإرسال رسالة في هذه الجلسة' },
+        { status: 401 }
+      );
+    }
+
+    // استخدم creator ID لو المستخدم هو صاحب الجلسة
+    // أو استخدم creator ID كـ senderId للـ guest messages (لأن الـ DB يتطلب senderId)
+    const senderId = user?.userId || session.creatorId;
+    const senderDisplayName = user ? undefined : (guestName || 'زائر');
+
+    // أنشئ الرسالة
     const message = await db.message.create({
       data: {
         sessionId,
-        senderId: user.userId,
-        receiverId: receiverId || null,
-        content,
+        senderId,
+        receiverId: session.creatorId,  // دايماً تروح لصاحب الجلسة
+        content: senderDisplayName ? `[${senderDisplayName}]: ${content}` : content,
         type: type || 'text',
       },
       include: {
@@ -194,7 +221,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error sending message:', error);
     return NextResponse.json(
-      { success: false, error: 'حدث خطأ' },
+      { success: false, error: 'حدث خطأ في إرسال الرسالة' },
       { status: 500 }
     );
   }

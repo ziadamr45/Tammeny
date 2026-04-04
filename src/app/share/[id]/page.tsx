@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef, useCallback, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,9 +30,11 @@ import {
   Activity,
   Timer,
   Loader2,
+  StopCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { toArabicNumerals, formatArabicDistance } from "@/lib/arabic-numerals";
 
 interface SessionData {
   id: string;
@@ -53,9 +55,23 @@ interface SessionData {
 }
 
 export default function ViewerPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      </main>
+    }>
+      <ViewerPageContent />
+    </Suspense>
+  );
+}
+
+function ViewerPageContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const encryptedId = params.id as string;
+  const isOwner = searchParams.get('owner') === 'true';
   
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,6 +226,32 @@ export default function ViewerPage() {
     return () => clearInterval(progressInterval);
   }, [hasArrived, session?.destLat]);
 
+  // Owner location updates - صاحب الجلسة يرسل موقعه من هنا
+  useEffect(() => {
+    if (!isOwner || !encryptedId) return;
+
+    const sendOwnerLocation = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition((pos) => {
+        fetch('/api/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            encryptedId,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            speed: pos.coords.speed || 0,
+            accuracy: pos.coords.accuracy,
+          }),
+        }).catch(() => {});
+      });
+    };
+
+    sendOwnerLocation();
+    const interval = setInterval(sendOwnerLocation, 5000);
+    return () => clearInterval(interval);
+  }, [isOwner, encryptedId]);
+
   const handleSendMessage = async () => {
     if (!message.trim() || !session) return;
     setSendingMessage(true);
@@ -223,7 +265,9 @@ export default function ViewerPage() {
         body: JSON.stringify({
           sessionId: session.id,
           content: message,
-          receiverId: session.id, // Session creator will receive the message
+          receiverId: session.id,
+          guestName: 'مشاهد',
+          type: 'text',
         }),
       });
 
@@ -250,7 +294,6 @@ export default function ViewerPage() {
     if (!session) return;
     
     try {
-      // Send a call request message to the session creator
       const response = await fetch('/api/messages', {
         method: 'POST',
         headers: {
@@ -260,6 +303,7 @@ export default function ViewerPage() {
           sessionId: session.id,
           content: "طلب مكالمة هاتفية - أرجو الاتصال بي",
           receiverId: session.id,
+          guestName: 'مشاهد',
           type: 'call_request',
         }),
       });
@@ -465,7 +509,7 @@ export default function ViewerPage() {
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <span className="text-xs font-medium">المسار المباشر</span>
               <Badge variant="secondary" className="bg-primary/10 text-primary text-xs">
-                {session.distance.toFixed(1)} كم
+                {formatArabicDistance(session.distance)}
               </Badge>
             </div>
           </div>
@@ -509,7 +553,7 @@ export default function ViewerPage() {
                   "text-3xl font-bold relative",
                   hasArrived ? "text-green-500" : "text-primary"
                 )}>
-                  {hasArrived ? "—" : (etaCountdown !== null ? Math.round(etaCountdown) : "—")}
+                  {hasArrived ? "—" : (etaCountdown !== null ? toArabicNumerals(Math.round(etaCountdown)) : "—")}
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">دقيقة</div>
@@ -522,7 +566,7 @@ export default function ViewerPage() {
                 <span>المسافة</span>
               </div>
               <div className="text-3xl font-bold">
-                {session.distance.toFixed(1)}
+                {formatArabicDistance(session.distance).split(' ')[0]}
               </div>
               <div className="text-xs text-muted-foreground">كم</div>
             </div>
@@ -549,7 +593,7 @@ export default function ViewerPage() {
                   التقدم نحو الهدف
                 </span>
                 <span className="font-medium text-primary">
-                  {Math.round(progressValue)}%
+                  {toArabicNumerals(Math.round(progressValue))}٪
                 </span>
               </div>
               <div className="h-3 bg-primary/20 rounded-full overflow-hidden relative">
@@ -614,18 +658,34 @@ export default function ViewerPage() {
             variant="outline"
             className="h-14 rounded-xl text-primary border-primary hover:bg-primary/10 transition-all group"
             onClick={() => setShowMessageModal(true)}
+            disabled={isOwner}
           >
             <MessageCircle className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
-            رسالة
+            {isOwner ? 'رسائلك' : 'رسالة'}
           </Button>
-          <Button
-            variant="outline"
-            className="h-14 rounded-xl text-green-600 border-green-600 hover:bg-green-50 transition-all group"
-            onClick={handleStartCall}
-          >
-            <Phone className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
-            طلب اتصال
-          </Button>
+          
+          {isOwner ? (
+            <Button
+              variant="destructive"
+              className="h-14 rounded-xl transition-all"
+              onClick={async () => {
+                await fetch(`/api/sessions/${encryptedId}/stop`, { method: 'POST' });
+                router.push('/share');
+              }}
+            >
+              <StopCircle className="w-5 h-5 ml-2" />
+              إيقاف المشاركة
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="h-14 rounded-xl text-green-600 border-green-600 hover:bg-green-50 transition-all group"
+              onClick={handleStartCall}
+            >
+              <Phone className="w-5 h-5 ml-2 group-hover:scale-110 transition-transform" />
+              طلب اتصال
+            </Button>
+          )}
         </div>
 
         {/* Trip Details */}
@@ -643,8 +703,8 @@ export default function ViewerPage() {
                 <div className="text-sm text-muted-foreground">بدأت منذ</div>
                 <div className="font-medium">
                   {session.startedAt 
-                    ? Math.round((Date.now() - new Date(session.startedAt).getTime()) / 60000) 
-                    : 0} دقيقة
+                    ? toArabicNumerals(Math.round((Date.now() - new Date(session.startedAt).getTime()) / 60000))
+                    : toArabicNumerals(0)} دقيقة
                 </div>
               </div>
               <Badge variant="secondary" className="bg-green-100 text-green-700">
@@ -662,7 +722,7 @@ export default function ViewerPage() {
                   <div className="font-medium">{session.destName}</div>
                 </div>
                 <Badge variant="secondary" className="bg-green-100 text-green-700">
-                  {session.distance.toFixed(1)} كم
+                  {formatArabicDistance(session.distance)}
                 </Badge>
               </div>
             )}

@@ -30,8 +30,8 @@ export async function POST(
 
     const { id: encryptedId } = await params;
 
-    // Extract session ID
-    const sessionId = extractSessionId(decodeURIComponent(encryptedId));
+    // Extract session ID (الـ extractSessionId المُصلَح يتعامل مع URL-safe تلقائياً)
+    const sessionId = extractSessionId(encryptedId);
     if (!sessionId) {
       return NextResponse.json(
         { success: false, error: 'رابط غير صالح' },

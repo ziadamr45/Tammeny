@@ -29,7 +29,7 @@ export async function GET(
       );
     }
 
-    // Count viewers from AllowedUser table
+    // Count viewers from AllowedUser table - المشاهدون الحقيقيون
     const viewerCount = await db.allowedUser.count({
       where: {
         sessionId: session.id,
@@ -37,24 +37,9 @@ export async function GET(
       },
     });
 
-    // Also count unique IP addresses that viewed (from location points as approximation)
-    // This is a simplified approach - in production you'd track this separately
-    const recentViews = await db.locationPoint.findMany({
-      where: {
-        sessionId: session.id,
-        timestamp: {
-          gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
-        },
-      },
-      distinct: ['id'], // Simplified - in production track by IP or session
-    });
-
-    // Return the higher count
-    const totalViewers = Math.max(viewerCount, recentViews.length > 0 ? 1 : 0);
-
     return NextResponse.json({
       success: true,
-      viewerCount: totalViewers,
+      viewerCount,
     });
   } catch (error) {
     console.error('Error getting viewer count:', error);

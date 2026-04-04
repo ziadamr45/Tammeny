@@ -63,21 +63,47 @@ export function decryptLocation(encryptedData: string): {
   }
 }
 
+// تحويل Base64 عادي → URL-safe (بدون +/=/ يكسر الـ URL)
+function toUrlSafeBase64(base64: string): string {
+  return base64
+    .replace(/\+/g, '-')   // + → -
+    .replace(/\//g, '_')   // / → _
+    .replace(/=/g, '~');   // = → ~
+}
+
+// تحويل URL-safe → Base64 عادي (لفك التشفير)
+function fromUrlSafeBase64(urlSafe: string): string {
+  return urlSafe
+    .replace(/-/g, '+')   // - → +
+    .replace(/_/g, '/')   // _ → /
+    .replace(/~/g, '=');  // ~ → =
+}
+
 // Generate encrypted session ID
 export function generateEncryptedId(sessionId: string): string {
   const timestamp = Date.now();
   const data = `${sessionId}:${timestamp}`;
-  return encrypt(data);
+  const encrypted = encrypt(data);         // Base64 عادي
+  return toUrlSafeBase64(encrypted);        // URL-safe
 }
 
 // Extract session ID from encrypted ID
 export function extractSessionId(encryptedId: string): string | null {
   try {
-    const decrypted = decrypt(encryptedId);
+    // المحاولة الأولى: URL-safe Base64 (الجديد)
+    const standardBase64 = fromUrlSafeBase64(encryptedId);
+    const decrypted = decrypt(standardBase64);
     const [sessionId] = decrypted.split(':');
-    return sessionId;
+    return sessionId || null;
   } catch {
-    return null;
+    // المحاولة الثانية: Base64 عادي (للـ sessions القديمة في DB)
+    try {
+      const decrypted = decrypt(encryptedId);
+      const [sessionId] = decrypted.split(':');
+      return sessionId || null;
+    } catch {
+      return null;
+    }
   }
 }
 

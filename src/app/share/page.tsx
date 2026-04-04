@@ -211,7 +211,7 @@ export default function SharePage() {
 
     const checkViewers = async () => {
       try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(activeEncryptedId)}/viewers`);
+        const res = await fetch(`/api/sessions/${activeEncryptedId}/viewers`);
         const data = await res.json();
         if (data.success) {
           setViewerCount(data.viewerCount);
@@ -233,7 +233,7 @@ export default function SharePage() {
     
     if (activeEncryptedId) {
       try {
-        await fetch(`/api/sessions/${encodeURIComponent(activeEncryptedId)}/stop`, {
+        await fetch(`/api/sessions/${activeEncryptedId}/stop`, {
           method: 'POST',
         });
       } catch (error) {
@@ -300,6 +300,11 @@ export default function SharePage() {
       startLocationUpdates(data.encryptedId, userSettings.batterySaver);
 
       toast.success("تم إنشاء رابط المشاركة بنجاح!");
+
+      // انتقل لشاشة المشاركة النشطة (owner=true يخلي الصفحة تعرف إنه صاحب الجلسة)
+      setTimeout(() => {
+        router.push(`/share/${data.encryptedId}?owner=true`);
+      }, 1200);
 
     } catch (error) {
       console.error('Share error:', error);

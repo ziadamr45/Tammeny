@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     // Create share URL
     const host = request.headers.get('host') || 'localhost:3000';
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
-    const shareUrl = `${protocol}://${host}/share/${encodeURIComponent(encryptedId)}`;
+    const shareUrl = `${protocol}://${host}/share/${encryptedId}`;
 
     return NextResponse.json({
       success: true,
