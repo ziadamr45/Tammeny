@@ -20,6 +20,7 @@ model User {
   gender        String?   // "male" | "female"
   phone         String?
   avatar        String?
+  address       String?   // User address
   deviceToken   String?   // For push notifications
   isVerified    Boolean   @default(false)
   
