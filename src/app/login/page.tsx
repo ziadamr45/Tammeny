@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield, Mail, Lock, Eye, EyeOff, ArrowLeft, Zap, HeadphonesIcon } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowLeft, CheckCircle2, Shield, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { LogoInline } from "@/components/tamenny/logo";
@@ -53,139 +53,130 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col">
+    <main className="min-h-screen bg-[#F8F9FA] dark:bg-background flex flex-col items-center py-8 px-4">
       {/* Logo Section */}
-      <div className="flex flex-col items-center pt-12 pb-6">
+      <div className="flex flex-col items-center mb-6">
         <LogoInline size="lg" showText />
       </div>
 
       {/* Form Card */}
-      <div className="flex-1 px-4 pb-8">
-        <Card className="p-6 shadow-sm border-0 bg-white dark:bg-card">
-          <h2 className="text-xl font-bold text-center mb-2">تسجيل الدخول</h2>
-          <p className="text-muted-foreground text-sm text-center mb-6">
-            سجل دخولك للوصول إلى حسابك
-          </p>
+      <Card className="w-full max-w-md p-6 shadow-lg border-0 bg-white dark:bg-card rounded-2xl">
+        {/* Title */}
+        <h1 className="text-2xl font-bold text-center mb-2 text-foreground">تسجيل الدخول</h1>
+        <p className="text-muted-foreground text-sm text-center mb-6 leading-relaxed">
+          سجل دخولك للوصول إلى حسابك والاستمتاع بجميع المميزات
+        </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-bold text-sm">البريد الإلكتروني</Label>
-              <div className="relative">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="pr-10 h-12 rounded-lg bg-[#E9ECEF] dark:bg-secondary border-0 focus:ring-2 focus:ring-primary"
-                  dir="ltr"
-                />
-                <Mail className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Email Field */}
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-semibold text-foreground">البريد الإلكتروني</Label>
+            <div className="relative">
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="pr-12 h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+                dir="ltr"
+              />
+              <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
             </div>
+          </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-bold text-sm">كلمة المرور</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="pr-10 pl-10 h-12 rounded-lg bg-[#E9ECEF] dark:bg-secondary border-0 focus:ring-2 focus:ring-primary"
-                />
-                <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Forgot Password */}
-            <div className="text-left">
-              <Link
-                href="/forgot-password"
-                className="text-sm text-primary hover:underline font-medium"
+          {/* Password Field */}
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-semibold text-foreground">كلمة المرور</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="pr-12 pl-12 h-14 rounded-xl bg-[#E9ECEF] dark:bg-secondary border-0 text-base placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/50"
+              />
+              <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               >
-                نسيت كلمة المرور؟
-              </Link>
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
+          </div>
 
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full h-12 text-base font-bold rounded-xl mt-6 bg-primary hover:bg-primary/90"
-              disabled={loading}
+          {/* Forgot Password */}
+          <div className="text-left">
+            <Link
+              href="/forgot-password"
+              className="text-sm text-primary hover:underline font-medium"
             >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  تسجيل الدخول
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-muted-foreground text-sm">أو</span>
-            <div className="flex-1 h-px bg-border" />
+              نسيت كلمة المرور؟
+            </Link>
           </div>
 
-          {/* Register Button */}
+          {/* Submit Button */}
           <Button
-            type="button"
-            variant="outline"
-            className="w-full h-12 text-base rounded-xl border-primary text-primary hover:bg-primary/5"
-            onClick={() => router.push("/register")}
+            type="submit"
+            className="w-full h-14 text-lg font-bold rounded-xl bg-primary hover:bg-primary/90 shadow-lg shadow-primary/25 transition-all"
+            disabled={loading}
           >
-            إنشاء حساب جديد
+            {loading ? (
+              <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                تسجيل الدخول
+                <ArrowLeft className="w-5 h-5 mr-2" />
+              </>
+            )}
           </Button>
+        </form>
 
-          {/* Terms Text */}
-          <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
-            من خلال تسجيل دخولك، فإنك توافق على{" "}
-            <Link href="/terms" className="text-primary font-medium hover:underline">
-              شروط الخدمة
-            </Link>
-            {" "}و{" "}
-            <Link href="/privacy" className="text-primary font-medium hover:underline">
-              سياسة الخصوصية
-            </Link>
-            {" "}الخاصة بـ طمنّي
-          </p>
-        </Card>
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-muted-foreground text-sm font-medium">أو</span>
+          <div className="flex-1 h-px bg-border" />
+        </div>
 
-        {/* App Features */}
-        <div className="flex justify-center gap-6 mt-8">
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground">تسجيل سريع</span>
+        {/* Register Button */}
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-14 text-lg font-semibold rounded-xl border-2 border-primary text-primary hover:bg-primary/5"
+          onClick={() => router.push("/register")}
+        >
+          إنشاء حساب جديد
+        </Button>
+
+        {/* Terms Text */}
+        <p className="text-center text-xs text-muted-foreground mt-6 leading-relaxed">
+          من خلال تسجيل دخولك، فإنك توافق على شروط الاستخدام وسياسة الخصوصية لـ طمنّي
+        </p>
+      </Card>
+
+      {/* Bottom Features */}
+      <div className="flex justify-center gap-8 mt-8 w-full max-w-md">
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <CheckCircle2 className="w-6 h-6 text-primary" />
           </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <Shield className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground">حماية البيانات</span>
+          <span className="text-xs text-muted-foreground font-medium">أمان مضمون</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <Shield className="w-6 h-6 text-primary" />
           </div>
-          <div className="flex flex-col items-center gap-1">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <HeadphonesIcon className="w-5 h-5 text-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground">دعم العملاء</span>
+          <span className="text-xs text-muted-foreground font-medium">خصوصية محمية</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+            <LockKeyhole className="w-6 h-6 text-primary" />
           </div>
+          <span className="text-xs text-muted-foreground font-medium">بيانات آمنة</span>
         </div>
       </div>
     </main>
