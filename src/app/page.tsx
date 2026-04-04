@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSavedLocation } from "@/hooks/use-saved-location";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
-import { SplashScreen } from "@/components/tamenny/splash-screen";
 import { StatusCard, ActionButton, ShareOption } from "@/components/tamenny/share-card";
 import { DynamicMap, calculateDistance, calculateETA, interpolateRoute } from "@/components/tamenny/map-component";
 import { OfflineIndicator } from "@/components/tamenny/offline-indicator";
@@ -44,31 +43,6 @@ export default function HomePage() {
   
   // Saved location - loads last known location instantly
   const { savedLocation, saveLocation } = useSavedLocation();
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Add timeout to prevent hanging
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch('/api/auth/me', {
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        const data = await response.json();
-        if (!data.success || !data.user) {
-          router.replace('/login');
-        } else {
-          setAuthChecked(true);
-        }
-      } catch {
-        router.replace('/login');
-      }
-    };
-    checkAuth();
-  }, [router]);
   
   const [status, setStatus] = useState<AppStatus>("idle");
   const [location, setLocation] = useState<{ lat: number; lng: number; name: string } | null>(null);
@@ -102,6 +76,23 @@ export default function HomePage() {
   const [userSettings, setUserSettings] = useState<{ stealthMode: boolean; batterySaver: boolean; notificationsEnabled: boolean }>({ stealthMode: false, batterySaver: false, notificationsEnabled: true });
   const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        const data = await response.json();
+        if (!data.success || !data.user) {
+          router.replace('/login');
+        } else {
+          setAuthChecked(true);
+        }
+      } catch {
+        router.replace('/login');
+      }
+    };
+    checkAuth();
+  }, [router]);
 
   // Calculate route info when destination is set
   const routeInfo = destination ? {
@@ -689,11 +680,19 @@ ${data.shareUrl}
     return "ضعيف";
   };
 
+  // Show loading spinner while checking auth
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <p className="text-muted-foreground">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <>
-      {/* Splash Screen - shows during auth check instead of skeleton */}
-      <SplashScreen isVisible={!authChecked} />
-    
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
       {/* Animated Background Gradient */}
       <div className="fixed inset-0 pointer-events-none z-0">
@@ -1275,7 +1274,6 @@ ${data.shareUrl}
         </DialogContent>
       </Dialog>
     </main>
-    </>
   );
 }
 
