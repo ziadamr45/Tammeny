@@ -5,14 +5,12 @@
 // ========================================
 // 
 // للإنتاج (PostgreSQL):
-//   DATABASE_PROVIDER="postgresql"
 //   DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
 // 
 // للتطوير المحلي (SQLite):
-//   DATABASE_PROVIDER="sqlite"
 //   DATABASE_URL="file:./dev.db"
 // 
-// ملاحظة: directUrl تمت إزالته لأنه خاص بـ PostgreSQL فقط
+// ملاحظة: يتم استخدام PostgreSQL افتراضياً للإنتاج
 // ========================================
 
 generator client {
@@ -20,8 +18,8 @@ generator client {
 }
 
 datasource db {
-  provider  = env("DATABASE_PROVIDER")
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // User model for authentication
