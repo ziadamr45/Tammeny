@@ -507,3 +507,49 @@ Type error: Property 'location' does not exist on type 'PrismaClient'
 - Commit: 7c00256
 - Message: "Fix Prisma model name: location -> locationPoint in trips API"
 - Files changed: 3 files, 8 insertions, 2 deletions
+
+---
+
+## Phase 9: Contact Info & Environment Update (Completed 2025-01-17)
+
+### Help Page Contact Information Updated ✅
+**Changes:**
+- Updated email from `support@tamenny.app` to `ziad90216@gmail.com`
+- Updated Facebook link to `https://www.facebook.com/ziad7mr`
+- Updated Telegram link to `https://t.me/ziadamr`
+- Removed unused Twitter and Instagram icons
+- YouTube links left as placeholder (to be added later by user)
+
+### Environment Variables Updated ✅
+**Added to `.env`:**
+- `DATABASE_URL` - PostgreSQL connection string (Neon)
+- `LIVEKIT_URL` - LiveKit server URL for voice/video
+- `LIVEKIT_API_KEY` - LiveKit API key
+- `LIVEKIT_API_SECRET` - LiveKit API secret
+- `ABLY_API_KEY` - Ably API key for real-time messaging
+
+### Database Sync ✅
+- Prisma schema synced with PostgreSQL database
+- Prisma Client regenerated
+
+---
+
+## Commit
+- Commit: 9a83b60
+- Message: "fix: update contact info and environment variables"
+- Files changed: 2 files, 21 insertions, 14 deletions
+
+---
+
+## Important: Vercel Environment Variables Required
+
+**Make sure these are set in Vercel Dashboard:**
+```
+DATABASE_URL="postgresql://neondb_owner:npg_GYFzwdA05vfb@ep-mute-dream-an1391io-pooler.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require"
+LIVEKIT_URL="wss://elmokhber-8sg62qxt.livekit.cloud"
+LIVEKIT_API_KEY="APIoPECEXcT7JYP"
+LIVEKIT_API_SECRET="sPP4ALl7q76UoRtFzzJZJDaGkfmd2xDV5tHuGrLWZDV"
+ABLY_API_KEY="kEBzbg.JaMLeg:ZEU-a0_2x0GnLm4yl-Wqot80J1QFz9t0pAzKdCmNeew"
+JWT_SECRET="tamenny-jwt-secret-key-2024-secure"
+ENCRYPTION_KEY="tamenny-encryption-key-32-characters!"
+```
