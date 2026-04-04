@@ -66,6 +66,19 @@ const chartConfig = {
   },
 };
 
+interface Trip {
+  id: string;
+  startTime: string;
+  endTime: string | null;
+  distance: number;
+  startLat: number | null;
+  startLng: number | null;
+  endLat: number | null;
+  endLng: number | null;
+  destination: string | null;
+  status: string;
+}
+
 interface DashboardStats {
   totalTrips: number;
   totalDistance: number;
@@ -86,6 +99,7 @@ export default function DashboardPage() {
   });
   const [weeklyData, setWeeklyData] = useState<{ day: string; trips: number; distance: number }[]>([]);
   const [monthlyData, setMonthlyData] = useState<{ week: string; trips: number; distance: number }[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -107,6 +121,7 @@ export default function DashboardPage() {
         const data = await response.json();
         
         if (data.success) {
+          setTrips(data.trips || []);
           setStats({
             totalTrips: data.stats.totalTrips || 0,
             totalDistance: data.stats.totalDistance || 0,
@@ -133,14 +148,28 @@ export default function DashboardPage() {
           
           setWeeklyData(weekData);
 
-          // Generate monthly data (4 weeks)
-          const months = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
-          const monthData = months.map(week => ({
-            week,
-            trips: Math.floor(data.stats.totalTrips / 4) || 0,
-            distance: Math.floor(data.stats.totalDistance / 4) || 0,
-          }));
-          setMonthlyData(monthData);
+          // Generate monthly data by grouping trips into weeks
+          const now = new Date();
+          const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+          const monthData = [
+            { week: 'الأسبوع 1', start: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), end: now, trips: 0, distance: 0 },
+            { week: 'الأسبوع 2', start: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000), end: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), trips: 0, distance: 0 },
+            { week: 'الأسبوع 3', start: new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000), end: new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000), trips: 0, distance: 0 },
+            { week: 'الأسبوع 4', start: fourWeeksAgo, end: new Date(now.getTime() - 21 * 24 * 60 * 60 * 1000), trips: 0, distance: 0 },
+          ];
+
+          data.trips.forEach((trip: { startTime: string; distance: number }) => {
+            const tripDate = new Date(trip.startTime);
+            for (let i = 0; i < monthData.length; i++) {
+              if (tripDate >= monthData[i].start && tripDate < monthData[i].end) {
+                monthData[i].trips += 1;
+                monthData[i].distance += trip.distance;
+                break;
+              }
+            }
+          });
+
+          setMonthlyData(monthData.map(w => ({ week: w.week, trips: w.trips, distance: w.distance })));
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -153,7 +182,45 @@ export default function DashboardPage() {
   }, [isAuthenticated]);
 
   const handleExport = () => {
-    toast.success("جاري تصدير التقرير...");
+    if (trips.length === 0) {
+      toast.error("لا توجد رحلات لتصديرها");
+      return;
+    }
+
+    // Generate CSV content
+    const headers = ['التاريخ', 'المسافة (كم)', 'الوجهة', 'الحالة', 'المدة (دقيقة)'];
+    const rows = trips.map(trip => {
+      const startTime = new Date(trip.startTime);
+      const endTime = trip.endTime ? new Date(trip.endTime) : null;
+      const duration = endTime 
+        ? Math.round((endTime.getTime() - startTime.getTime()) / 60000)
+        : 0;
+      return [
+        startTime.toLocaleDateString('ar-EG'),
+        trip.distance.toFixed(2),
+        trip.destination || '—',
+        trip.status === 'completed' ? 'مكتملة' : 'نشطة',
+        duration.toString()
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tamenny-report-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success("تم تصدير التقرير بنجاح");
   };
 
   const getTransportIcon = (mode: string) => {

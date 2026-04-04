@@ -84,21 +84,37 @@
 
 ---
 
+## Phase 3: Additional Bug Fixes (Completed)
+
+### BUG #5: Groups Fake Online Count ✅
+- Updated `/api/groups` to query active sessions for group members
+- Added `isOnline` field to each member based on active session status
+- Added `onlineCount` field to each group
+- Updated frontend to use real online count instead of simulated 60%
+
+### BUG #7: Dashboard Export CSV ✅
+- Implemented real CSV export functionality in dashboard
+- Downloads trip data with Arabic headers
+- Includes: date, distance, destination, status, duration
+- Creates downloadable file with UTF-8 BOM for Arabic support
+
+### BUG #10: Share Page Viewer Message ✅
+- Updated `handleSendMessage` in `/share/[id]/page.tsx`
+- Now calls real `/api/messages` POST endpoint
+- Properly sends message content to session creator
+- Shows success/error feedback to user
+
+### BUG #14: Dashboard Chart Fake Data ✅
+- Fixed monthly data calculation to group trips by actual week
+- Weekly view now shows real trip counts per day
+- Monthly view calculates trip distribution across 4 weeks
+- All data derived from real `/api/trips` response
+
+---
+
 ## Pending Work
 
-### BUG #5: Groups Fake Online Count
-- Need to update `/api/groups` to return `activeCount`
-- Update frontend to show "X مشارك الآن"
-
-### BUG #7: Dashboard Export CSV
-- Implement real CSV export in dashboard page
-- Use `/api/trips` data
-
-### BUG #10: Share Page Viewer Message
-- Update share page to use real `/api/messages` endpoint
-
-### BUG #14: Dashboard Chart Fake Data
-- Update dashboard to calculate real weekly breakdown from trips data
+None - All identified bugs have been fixed!
 
 ---
 

@@ -36,6 +36,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Get active sessions to determine online status
+    const activeSessions = await db.session.findMany({
+      where: {
+        status: 'active',
+        creatorId: { in: groupMemberships.flatMap(gm => gm.group.members.map(m => m.userId)) }
+      },
+      select: { creatorId: true }
+    });
+    const onlineUserIds = new Set(activeSessions.map(s => s.creatorId));
+
     const groups = groupMemberships.map((gm) => ({
       id: gm.group.id,
       name: gm.group.name,
@@ -50,7 +60,9 @@ export async function GET(request: NextRequest) {
         avatar: m.user.avatar,
         role: m.role,
         joinedAt: m.joinedAt,
+        isOnline: onlineUserIds.has(m.userId),
       })),
+      onlineCount: gm.group.members.filter(m => onlineUserIds.has(m.userId)).length,
     }));
 
     return NextResponse.json({

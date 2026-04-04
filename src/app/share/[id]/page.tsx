@@ -239,18 +239,39 @@ export default function ViewerPage() {
   }, [isCallActive]);
 
   const handleSendMessage = async () => {
-    if (!message.trim()) return;
+    if (!message.trim() || !session) return;
     setSendingMessage(true);
     
-    // Simulate sending message
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    toast.success("تم إرسال الرسالة!", {
-      icon: <Send className="w-4 h-4" />,
-    });
-    setMessage("");
-    setSendingMessage(false);
-    setShowMessageModal(false);
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: session.id,
+          content: message,
+          receiverId: session.id, // Session creator will receive the message
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("تم إرسال الرسالة!", {
+          icon: <Send className="w-4 h-4" />,
+        });
+        setMessage("");
+        setShowMessageModal(false);
+      } else {
+        toast.error(data.error || "فشل في إرسال الرسالة");
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast.error("فشل في إرسال الرسالة");
+    } finally {
+      setSendingMessage(false);
+    }
   };
 
   const handleStartCall = () => {

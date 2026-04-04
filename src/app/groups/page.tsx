@@ -53,6 +53,7 @@ interface GroupMember {
   avatar: string | null;
   role: "admin" | "member";
   joinedAt: string;
+  isOnline?: boolean;
 }
 
 interface Group {
@@ -63,6 +64,7 @@ interface Group {
   createdAt: string;
   userRole: "admin" | "member";
   members: GroupMember[];
+  onlineCount?: number;
 }
 
 export default function GroupsPage() {
@@ -206,12 +208,12 @@ export default function GroupsPage() {
     setShowAddMemberDialog(true);
   };
 
-  // Calculate stats
+  // Calculate stats from real data
   const totalGroups = groups.length;
   const activeGroups = groups.length; // All groups are considered active for now
   const totalMembers = groups.reduce((acc, g) => acc + g.members.length, 0);
   const onlineMembers = groups.reduce(
-    (acc, g) => acc + Math.floor(g.members.length * 0.6), // Simulate 60% online
+    (acc, g) => acc + (g.onlineCount || 0),
     0
   );
 
@@ -523,7 +525,7 @@ function GroupCard({
   onSettings: (group: Group) => void;
   onAddMember: (group: Group) => void;
 }) {
-  const onlineCount = Math.floor(group.members.length * 0.6); // Simulate 60% online
+  const onlineCount = group.onlineCount || 0;
 
   return (
     <Card className="p-4 card-shadow hover:shadow-lg transition-all">
