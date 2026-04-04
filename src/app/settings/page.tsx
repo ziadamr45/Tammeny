@@ -21,6 +21,7 @@ import {
   LogOut,
   ShieldCheck,
   Eye,
+  EyeOff,
   MapPin,
   Smartphone,
   Globe,
@@ -52,6 +53,47 @@ export default function SettingsPage() {
   const [ghostMode, setGhostMode] = useState(false);
   const [stealthMode, setStealthMode] = useState(false);
   const [locationAccuracy, setLocationAccuracy] = useState(true);
+
+  // Load stealth mode from user settings
+  useEffect(() => {
+    if (user?.id) {
+      // Fetch user settings to get stealth mode
+      const fetchUserSettings = async () => {
+        try {
+          const response = await fetch('/api/auth/me');
+          const data = await response.json();
+          if (data.success && data.user) {
+            setStealthMode(data.user.stealthMode || false);
+          }
+        } catch (error) {
+          console.error('Error fetching user settings:', error);
+        }
+      };
+      fetchUserSettings();
+    }
+  }, [user?.id]);
+
+  // Handle stealth mode toggle
+  const handleStealthModeToggle = async (enabled: boolean) => {
+    setStealthMode(enabled);
+    try {
+      const response = await fetch('/api/user/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stealthMode: enabled }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        toast.success(enabled ? "تم تفعيل وضع الصمت" : "تم إيقاف وضع الصمت");
+      } else {
+        setStealthMode(!enabled); // Revert on error
+        toast.error("فشل في تحديث الإعدادات");
+      }
+    } catch (error) {
+      setStealthMode(!enabled); // Revert on error
+      toast.error("فشل في تحديث الإعدادات");
+    }
+  };
   const { theme, setTheme } = useTheme();
   
   // Battery saver state
@@ -383,6 +425,39 @@ export default function SettingsPage() {
             checked={ghostMode}
             onChange={setGhostMode}
           />
+          
+          {/* Stealth Mode Toggle - وضع الصمت */}
+          <div className="flex items-center gap-4 p-4">
+            <div className={cn("transition-colors", stealthMode ? "text-purple-500" : "text-primary")}>
+              {stealthMode ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </div>
+            <div className="flex-1">
+              <div className="font-medium flex items-center gap-2">
+                وضع الصمت
+                {stealthMode && (
+                  <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 text-xs">
+                    نشط
+                  </Badge>
+                )}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                مشاركة الموقع بصمت دون إشعارات
+              </div>
+              {stealthMode && (
+                <div className="mt-2 p-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                  <ul className="text-xs text-purple-700 dark:text-purple-300 space-y-1">
+                    <li>• لن يتم إرسال إشعارات للآخرين</li>
+                    <li>• سيظهر موقعك كآخر موقع معروف</li>
+                    <li>• يمكنك الاطلاع على مواقع الآخرين</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+            <Switch 
+              checked={stealthMode} 
+              onCheckedChange={handleStealthModeToggle} 
+            />
+          </div>
           
           <SettingsToggle
             icon={<MapPin className="w-5 h-5" />}

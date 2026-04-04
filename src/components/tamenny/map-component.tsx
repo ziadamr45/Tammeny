@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MapPin, Navigation, AlertCircle, Clock, Route } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 // Types
 interface Location {
@@ -83,6 +84,16 @@ export function MapComponent({
   const waypointMarkersRef = useRef<L.Marker[]>([]);
   const animatedMarkerRef = useRef<L.Marker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Get current theme (handle hydration)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isDark = mounted && (resolvedTheme === 'dark' || theme === 'dark');
 
   // Load Leaflet dynamically
   useEffect(() => {
@@ -123,10 +134,18 @@ export function MapComponent({
         minZoom: 2,
       });
 
-      // Add OpenStreetMap tiles with Arabic-friendly styling
-      L.default.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      // Choose tile layer based on theme
+      // Carto Dark Matter for dark mode, OpenStreetMap for light mode
+      const tileUrl = isDark 
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+      const tileLayer = L.default.tileLayer(tileUrl, {
         maxZoom: 19,
+        attribution: isDark ? '&copy; <a href="https://carto.com/">CARTO</a>' : '',
       }).addTo(map);
+
+      tileLayerRef.current = tileLayer;
 
       // Add zoom control to the bottom-left for RTL
       L.default.control.zoom({ position: "bottomleft" }).addTo(map);
@@ -141,7 +160,7 @@ export function MapComponent({
         mapInstance.remove();
       }
     };
-  }, [leafletLoaded]);
+  }, [leafletLoaded, isDark]);
 
   // Update center when location changes
   useEffect(() => {
@@ -149,6 +168,36 @@ export function MapComponent({
     
     mapInstance.setView([center.lat, center.lng], mapInstance.getZoom());
   }, [center, mapInstance]);
+
+  // Update tile layer when theme changes
+  useEffect(() => {
+    if (!mapInstance || !leafletLoaded) return;
+
+    const updateTileLayer = async () => {
+      const L = await import("leaflet");
+      
+      // Remove existing tile layer
+      if (tileLayerRef.current) {
+        mapInstance.removeLayer(tileLayerRef.current);
+      }
+
+      // Add new tile layer based on current theme
+      const tileUrl = isDark 
+        ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+      const tileLayer = L.default.tileLayer(tileUrl, {
+        maxZoom: 19,
+        attribution: isDark ? '&copy; <a href="https://carto.com/">CARTO</a>' : '',
+      }).addTo(mapInstance);
+
+      // Make sure tile layer is behind markers
+      tileLayer.bringToBack();
+      tileLayerRef.current = tileLayer;
+    };
+
+    updateTileLayer();
+  }, [isDark, mapInstance, leafletLoaded]);
 
   // Get route style based on type
   const getRouteStyle = useCallback(() => {

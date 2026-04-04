@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
         color: z.color,
         notifyOnEnter: z.notifyOnEnter,
         notifyOnExit: z.notifyOnExit,
+        childAlertEnabled: z.childAlertEnabled,
+        childName: z.childName,
         createdAt: z.createdAt,
       })),
     });
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
       color,
       notifyOnEnter,
       notifyOnExit,
+      childAlertEnabled,
+      childName,
     } = body;
 
     if (!name || latitude === undefined || longitude === undefined) {
@@ -71,6 +75,8 @@ export async function POST(request: NextRequest) {
         color: color || 'safe',
         notifyOnEnter: notifyOnEnter ?? true,
         notifyOnExit: notifyOnExit ?? true,
+        childAlertEnabled: childAlertEnabled ?? false,
+        childName: childName || null,
       },
     });
 
@@ -86,6 +92,8 @@ export async function POST(request: NextRequest) {
         color: safeZone.color,
         notifyOnEnter: safeZone.notifyOnEnter,
         notifyOnExit: safeZone.notifyOnExit,
+        childAlertEnabled: safeZone.childAlertEnabled,
+        childName: safeZone.childName,
         createdAt: safeZone.createdAt,
       },
     });

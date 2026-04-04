@@ -46,6 +46,7 @@ import {
   Navigation,
   Shield,
   Loader2,
+  Baby,
 } from "lucide-react";
 import { BottomNav, Header } from "@/components/tamenny/bottom-nav";
 import { DynamicMap } from "@/components/tamenny/map-component";
@@ -64,6 +65,8 @@ interface SafeZone {
   color: string;
   notifyOnEnter: boolean;
   notifyOnExit: boolean;
+  childAlertEnabled: boolean;
+  childName: string | null;
   createdAt: string;
 }
 
@@ -101,6 +104,8 @@ export default function SafeZonesPage() {
     color: "safe",
     notifyOnEnter: true,
     notifyOnExit: true,
+    childAlertEnabled: false,
+    childName: null,
     latitude: 30.0444,
     longitude: 31.2357,
   });
@@ -240,6 +245,8 @@ export default function SafeZonesPage() {
       color: zone.color,
       notifyOnEnter: zone.notifyOnEnter,
       notifyOnExit: zone.notifyOnExit,
+      childAlertEnabled: zone.childAlertEnabled,
+      childName: zone.childName,
       latitude: zone.latitude,
       longitude: zone.longitude,
     });
@@ -259,6 +266,8 @@ export default function SafeZonesPage() {
       color: "safe",
       notifyOnEnter: true,
       notifyOnExit: true,
+      childAlertEnabled: false,
+      childName: null,
       latitude: 30.0444,
       longitude: 31.2357,
     });
@@ -569,6 +578,34 @@ export default function SafeZonesPage() {
                 />
               </div>
             </div>
+
+            {/* Child Exit Alert Section */}
+            <div className="space-y-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Baby className="w-5 h-5 text-blue-500" />
+                  <span className="font-medium text-sm">تنبيه خروج الأطفال</span>
+                </div>
+                <Switch
+                  checked={newZone.childAlertEnabled}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, childAlertEnabled: checked })}
+                />
+              </div>
+              {newZone.childAlertEnabled && (
+                <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                  <Label className="text-xs">اسم الطفل</Label>
+                  <Input
+                    value={newZone.childName || ""}
+                    onChange={(e) => setNewZone({ ...newZone, childName: e.target.value })}
+                    placeholder="أدخل اسم الطفل"
+                    className="text-right bg-white dark:bg-background"
+                  />
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    سيتم إرسال تنبيه فوري عند خروج الطفل من هذه المنطقة
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="gap-2">
@@ -690,6 +727,34 @@ export default function SafeZonesPage() {
                   onCheckedChange={(checked) => setNewZone({ ...newZone, notifyOnExit: checked })}
                 />
               </div>
+            </div>
+
+            {/* Child Exit Alert Section */}
+            <div className="space-y-3 p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Baby className="w-5 h-5 text-blue-500" />
+                  <span className="font-medium text-sm">تنبيه خروج الأطفال</span>
+                </div>
+                <Switch
+                  checked={newZone.childAlertEnabled}
+                  onCheckedChange={(checked) => setNewZone({ ...newZone, childAlertEnabled: checked })}
+                />
+              </div>
+              {newZone.childAlertEnabled && (
+                <div className="space-y-2 pt-2 border-t border-blue-200 dark:border-blue-700">
+                  <Label className="text-xs">اسم الطفل</Label>
+                  <Input
+                    value={newZone.childName || ""}
+                    onChange={(e) => setNewZone({ ...newZone, childName: e.target.value })}
+                    placeholder="أدخل اسم الطفل"
+                    className="text-right bg-white dark:bg-background"
+                  />
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    سيتم إرسال تنبيه فوري عند خروج الطفل من هذه المنطقة
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -831,7 +896,7 @@ function ZoneCard({
           </div>
 
           {/* Alert badges */}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {zone.notifyOnEnter && (
               <Badge variant="outline" className="text-xs border-green-300 text-green-600">
                 دخول
@@ -840,6 +905,12 @@ function ZoneCard({
             {zone.notifyOnExit && (
               <Badge variant="outline" className="text-xs border-blue-300 text-blue-600">
                 خروج
+              </Badge>
+            )}
+            {zone.childAlertEnabled && (
+              <Badge variant="outline" className="text-xs border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20">
+                <Baby className="w-3 h-3 ml-1" />
+                {zone.childName || "طفل"}
               </Badge>
             )}
           </div>

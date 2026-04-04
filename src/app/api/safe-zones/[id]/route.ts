@@ -32,6 +32,8 @@ export async function GET(
         color: safeZone.color,
         notifyOnEnter: safeZone.notifyOnEnter,
         notifyOnExit: safeZone.notifyOnExit,
+        childAlertEnabled: safeZone.childAlertEnabled,
+        childName: safeZone.childName,
         createdAt: safeZone.createdAt,
       },
     });
@@ -61,6 +63,8 @@ export async function PUT(
       color,
       notifyOnEnter,
       notifyOnExit,
+      childAlertEnabled,
+      childName,
     } = body;
 
     const safeZone = await db.safeZone.update({
@@ -74,6 +78,8 @@ export async function PUT(
         color: color || undefined,
         notifyOnEnter: notifyOnEnter ?? undefined,
         notifyOnExit: notifyOnExit ?? undefined,
+        childAlertEnabled: childAlertEnabled ?? undefined,
+        childName: childName !== undefined ? childName : undefined,
       },
     });
 
@@ -89,6 +95,8 @@ export async function PUT(
         color: safeZone.color,
         notifyOnEnter: safeZone.notifyOnEnter,
         notifyOnExit: safeZone.notifyOnExit,
+        childAlertEnabled: safeZone.childAlertEnabled,
+        childName: safeZone.childName,
         createdAt: safeZone.createdAt,
       },
     });
