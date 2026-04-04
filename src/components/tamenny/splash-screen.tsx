@@ -1,35 +1,61 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 
 interface SplashScreenProps {
   onComplete?: () => void;
-  duration?: number; // in milliseconds
+  duration?: number; // in milliseconds, if not provided, stays visible until isVisible becomes false
+  isVisible?: boolean; // controlled mode - hide when false
 }
 
-export function SplashScreen({ onComplete, duration = 2500 }: SplashScreenProps) {
-  const [isVisible, setIsVisible] = useState(true);
+export function SplashScreen({ onComplete, duration, isVisible = true }: SplashScreenProps) {
+  const [show, setShow] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const prevIsVisible = useRef(isVisible);
 
   useEffect(() => {
-    // Start fade out animation before completing
-    const fadeOutTimer = setTimeout(() => {
-      setIsFadingOut(true);
-    }, duration - 500);
+    // Auto-hide mode with duration
+    if (duration) {
+      const fadeOutTimer = setTimeout(() => {
+        setIsFadingOut(true);
+      }, duration - 500);
 
-    const completeTimer = setTimeout(() => {
-      setIsVisible(false);
-      onComplete?.();
-    }, duration);
+      const completeTimer = setTimeout(() => {
+        setShow(false);
+        onComplete?.();
+      }, duration);
 
-    return () => {
-      clearTimeout(fadeOutTimer);
-      clearTimeout(completeTimer);
-    };
+      return () => {
+        clearTimeout(fadeOutTimer);
+        clearTimeout(completeTimer);
+      };
+    }
   }, [duration, onComplete]);
 
-  if (!isVisible) return null;
+  // Controlled mode - hide when isVisible becomes false
+  useEffect(() => {
+    // Only react when isVisible changes from true to false
+    if (prevIsVisible.current && !isVisible && show && !isFadingOut) {
+      // Use setTimeout to defer state update
+      const fadeTimer = setTimeout(() => {
+        setIsFadingOut(true);
+      }, 0);
+      
+      const completeTimer = setTimeout(() => {
+        setShow(false);
+        onComplete?.();
+      }, 500);
+      
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(completeTimer);
+      };
+    }
+    prevIsVisible.current = isVisible;
+  }, [isVisible, show, isFadingOut, onComplete]);
+
+  if (!show) return null;
 
   return (
     <div

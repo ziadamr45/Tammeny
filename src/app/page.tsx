@@ -42,9 +42,6 @@ export default function HomePage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
   
-  // Splash screen state
-  const [showSplash, setShowSplash] = useState(true);
-  
   // Saved location - loads last known location instantly
   const { savedLocation, saveLocation } = useSavedLocation();
   
@@ -686,51 +683,10 @@ ${data.shareUrl}
 
   return (
     <>
-      {/* Splash Screen */}
-      {showSplash && (
-        <SplashScreen onComplete={() => setShowSplash(false)} duration={2500} />
-      )}
+      {/* Splash Screen - shows during auth check instead of skeleton */}
+      <SplashScreen isVisible={!authChecked} />
     
     <main className="min-h-screen bg-background pb-20 relative overflow-hidden">
-      {/* Auth Loading */}
-      {!authChecked && (
-        <div className="fixed inset-0 bg-background z-[100]">
-          {/* Map skeleton */}
-          <div className="h-[45vh] bg-muted relative">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-20 h-20 bg-muted-foreground/10 rounded-2xl animate-pulse" />
-            </div>
-          </div>
-
-          {/* Content skeleton */}
-          <div className="px-4 py-6 space-y-4">
-            {/* Status bar skeleton */}
-            <div className="h-12 bg-muted rounded-xl animate-pulse" />
-
-            {/* Destination card skeleton */}
-            <div className="h-20 bg-muted rounded-2xl animate-pulse opacity-90" />
-
-            {/* Share button skeleton */}
-            <div className="h-20 bg-muted rounded-2xl animate-pulse opacity-80" />
-
-            {/* Quick actions skeleton */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="h-24 bg-muted rounded-xl animate-pulse opacity-70" />
-              <div className="h-24 bg-muted rounded-xl animate-pulse opacity-70" style={{ animationDelay: '100ms' }} />
-            </div>
-
-            {/* WhatsApp button skeleton */}
-            <div className="h-16 bg-muted rounded-xl animate-pulse opacity-60" style={{ animationDelay: '150ms' }} />
-
-            {/* Additional skeleton elements */}
-            <div className="space-y-3">
-              <div className="h-16 bg-muted rounded-xl animate-pulse opacity-50" style={{ animationDelay: '200ms' }} />
-              <div className="h-16 bg-muted rounded-xl animate-pulse opacity-40" style={{ animationDelay: '250ms' }} />
-            </div>
-          </div>
-        </div>
-      )}
-      
       {/* Animated Background Gradient */}
       <div className="fixed inset-0 pointer-events-none z-0">
         <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-primary/10 to-teal-light/5 rounded-full blur-3xl animate-pulse" style={{ transform: "translate(-30%, -30%)" }} />
